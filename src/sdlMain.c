@@ -23,6 +23,11 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 		return SDL_APP_FAILURE;
 	}
 	
+	uint32_t extensionCount = 0;
+	vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, NULL);
+
+	printf("%d extensions supported\n", extensionCount);
+
 	return SDL_APP_CONTINUE; // The init function ran successfully
 }
 
