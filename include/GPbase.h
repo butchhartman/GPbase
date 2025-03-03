@@ -18,15 +18,19 @@
 	#endif\
 
 	#ifdef DEBUG_VERBOSITY_CRITICAL // Only critical debug mode outpus will be logged
-		#define DEBUG_VERBOSITY 256 //VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
+		#define DEBUG_VERBOSITY 4096 
 	#endif 
 
+	#ifdef DEBUG_VERBOSITY_WARNING // Only warnings and up will be shown
+		#define DEBUG_VERBOSITY	256 //VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
+	#endif
 
 #endif
 
 // Validations layers
-const char* validationLayers[] = {
+const char *validationLayers[] = {
 	"VK_LAYER_KHRONOS_validation",
+	//"VK_LAYER_LUNARG_crash_diagnostic"
 };
 
 // Standard libraries
@@ -43,6 +47,9 @@ const char* validationLayers[] = {
 
 // 3D graphics API
 #include <vulkan/vulkan.h>
+
+// Header containing functions involving validation layers
+#include "ValidationLayers.h"
 
 
 

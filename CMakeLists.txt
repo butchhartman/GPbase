@@ -26,7 +26,7 @@ link_directories ("lib")
 find_package(Vulkan REQUIRED)
 
 # Add source to this project's executable.
-add_executable (GPbase "src/sdlMain.c"  "include/GPbase.h" "include/SDL3/SDL.h")
+add_executable (GPbase "src/sdlMain.c"  "include/GPbase.h" "include/SDL3/SDL.h" "include/ValidationLayers.h" "src/ValidationLayers.c")
 
 # Makes directories in the source directory visible as system directories (can be included by <>)
 # This allows libraries to work without me changing their include paths
