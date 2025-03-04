@@ -42,6 +42,13 @@ VkFormat swapChainImageFormat;
 // In use extent of the swapchain
 VkExtent2D swapChainExtent;
 
+// Array of the image views on the swap chain
+//An image view is quite literally a view into an image. 
+// It describes how to access the image and which part of 
+// the image to access, for example if it should be treated
+// as a 2D texture depth texture without any mipmapping levels. (vulkan-tutorial.com)
+VkImageView *swapChainImageViews;
+
 /*
 Returns a list of extensions needed by Vulkan for the application.
 Assignes the passed count pointer to the number of extensions required.
@@ -124,18 +131,18 @@ int checkDeviceExtensionSupport(VkPhysicalDevice device) {
 	vkEnumerateDeviceExtensionProperties(device, NULL, &extensionCount, availableExtensions);
 
 	int supportedExtensions = 0;
-	printf("\n%d available extensions; %d required extensions", extensionCount, sizeof(deviceExtensions) / sizeof(deviceExtensions[0]));
+	printf("\n%d available extensions; %d required extensions\n", extensionCount, sizeof(deviceExtensions) / sizeof(deviceExtensions[0]));
 	for (uint32_t i = 0; i < extensionCount; i++) {
 		//printf("\n\tDEVICE EXTENSION : %s", availableExtensions[i].extensionName);
 		for (uint32_t j = 0; j < sizeof(deviceExtensions) / sizeof(deviceExtensions[0]); j++) {
 			if (strcmp(availableExtensions[i].extensionName, deviceExtensions[j]) == 0) {
-				printf("\n\tSUPPORTED DEVICE EXT : %s", availableExtensions[i].extensionName);
+				printf("\n\tSUPPORTED DEVICE EXT : %s\n", availableExtensions[i].extensionName);
 				supportedExtensions++;
 				break;
 			}
 		}
 	}
-	printf("\n%d extensions supported of %d required extensions.", supportedExtensions, sizeof(deviceExtensions) / sizeof(deviceExtensions[0]));
+	printf("\n%d extensions supported of %d required extensions.\n", supportedExtensions, sizeof(deviceExtensions) / sizeof(deviceExtensions[0]));
 	return supportedExtensions;
 }
 
@@ -214,7 +221,7 @@ uint32_t isDeviceSuitable(VkPhysicalDevice device) {
 		swapChainSupport = querySwapChainSupport(device);
 		// This check may not be reliable TODO : TEST
 		swapChainAdequate = swapChainSupport.presentModes != NULL && swapChainSupport.formats != NULL;
-		printf("%d", swapChainAdequate);
+		//printf("%d", swapChainAdequate);
 	} 
 	// Device selection process
 	// Idont think graphics family is properly being checked TODO : fix
@@ -461,10 +468,38 @@ void createSwapChain() {
 
 	vkGetSwapchainImagesKHR(logicalDevice, swapChain, &swapchainImageCount, swapChainImages);
 
-	swapChainImageFormat = surfaceFormat.colorSpace;
+	swapChainImageFormat = surfaceFormat.format;
 	swapChainExtent = extent;
 }
 
+void createImageViews() {
+	swapChainImageViews = (VkImageView*)malloc(sizeof(VkImage) * sizeof(swapChainImages) / sizeof(swapChainImages[0]));
+
+	for (uint32_t i = 0; i < sizeof(swapChainImages) / sizeof(swapChainImages[0]); i++) {
+		VkImageViewCreateInfo createInfo = { 0 };
+		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		createInfo.image = swapChainImages[i];
+
+		createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		createInfo.format = swapChainImageFormat;
+
+		createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+		createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		createInfo.subresourceRange.baseMipLevel = 0;
+		createInfo.subresourceRange.levelCount = 1;
+		createInfo.subresourceRange.baseArrayLayer = 0;
+		createInfo.subresourceRange.layerCount = 1;
+
+		if (vkCreateImageView(logicalDevice, &createInfo, NULL, &swapChainImageViews[i]) != VK_SUCCESS) {
+			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to create image views");
+			exit(VK_ERROR_INITIALIZATION_FAILED);
+		}
+	}
+}
 
 /* 
 	Function that creates the Vulkan instance. Must be called after
@@ -483,6 +518,8 @@ VkResult Vk_Init() {
 	createLogicalDevice();
 
 	createSwapChain();
+
+	createImageViews();
 	return VK_SUCCESS;
 }
 
@@ -564,6 +601,11 @@ void SDL_AppQuit(void* appstate, SDL_AppResult result) {
 	if (enableValidationLayers) {
 		DestroyDebugUtilsMessengerEXT(instance, debugMessenger, NULL);
 	}
+	// the children yearn for for loops
+	for (uint32_t i = 0; i < sizeof(swapChainImageViews) / sizeof(swapChainImageViews[0]); i++) {
+		vkDestroyImageView(logicalDevice, swapChainImageViews[i], NULL);
+	}
+
 	vkDestroySwapchainKHR(logicalDevice, swapChain, NULL);
 	vkDestroyDevice(logicalDevice, NULL);
 	vkDestroySurfaceKHR(instance, surface, NULL);
