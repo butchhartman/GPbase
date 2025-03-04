@@ -36,6 +36,97 @@ Assignes the passed count pointer to the number of extensions required.
 If validation layers are enabled, appends VK_EXT_DEBUG_UTILS_EXTENSION_NAME to the
 end of the returned array and adds 1 to the count.
 */
+
+
+VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR* capabilities) {
+	
+	// TODO : revist this function to add more sophisticated procedures
+
+	int width, height;
+
+	SDL_GetWindowSizeInPixels(window, &width, &height);
+
+	VkExtent2D actualExtent = {
+		(uint32_t)width,
+		(uint32_t)(height)
+	};
+
+	return actualExtent;
+}
+
+VkPresentModeKHR chooseSwapPresentMode(const VkPresentModeKHR **availablePresentModes) {
+	// TODO : ADD SELECTION LOGIC
+	// Selection not needed because fifo is guaranteed.
+	return VK_PRESENT_MODE_FIFO_KHR;
+}
+
+VkSurfaceFormatKHR chooseSwapSurfaceFormat(const VkSurfaceFormatKHR **availableFormats) {
+	// the children yearn for for loops...
+
+	// return the one with our specs
+	for (uint32_t i = 0; i < sizeof(availableFormats) / sizeof(availableFormats[0]); i++) {
+		if (availableFormats[i]->format == VK_FORMAT_B8G8R8A8_SRGB &&
+			availableFormats[i]->format == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+			return *availableFormats[i];
+		}
+	}
+
+	// Otherwise return the first one lul
+	return *availableFormats[0];
+
+}
+
+SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device) {
+	SwapChainSupportDetails details = { 0 };
+
+	// surface capabilities
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
+
+	// surface formates
+	uint32_t formatCount = 0;
+	vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, NULL);
+
+	if (formatCount != 0) {
+		details.formats = (VkSurfaceFormatKHR*)malloc(sizeof(VkSurfaceFormatKHR) * formatCount);
+		memset(details.formats, NULL, sizeof(VkSurfaceFormatKHR) * formatCount);
+		vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, details.formats);
+	}
+
+	// presentation modes
+	uint32_t presentCount = 0;
+	vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentCount, NULL);
+
+	if (presentCount != 0) {
+		details.presentModes = (VkPresentModeKHR*)malloc(sizeof(VkPresentModeKHR) * presentCount);
+		memset(details.presentModes, NULL, sizeof(VkPresentModeKHR) * presentCount);
+		vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentCount, details.presentModes);
+	}
+	return details;
+}
+
+int checkDeviceExtensionSupport(VkPhysicalDevice device) {
+	uint32_t extensionCount = 0;
+	vkEnumerateDeviceExtensionProperties(device, NULL, &extensionCount, NULL);
+
+	VkExtensionProperties *availableExtensions = (VkExtensionProperties*)malloc(sizeof(VkExtensionProperties) * extensionCount);
+	vkEnumerateDeviceExtensionProperties(device, NULL, &extensionCount, availableExtensions);
+
+	int supportedExtensions = 0;
+	printf("\n%d available extensions; %d required extensions", extensionCount, sizeof(deviceExtensions) / sizeof(deviceExtensions[0]));
+	for (uint32_t i = 0; i < extensionCount; i++) {
+		//printf("\n\tDEVICE EXTENSION : %s", availableExtensions[i].extensionName);
+		for (uint32_t j = 0; j < sizeof(deviceExtensions) / sizeof(deviceExtensions[0]); j++) {
+			if (strcmp(availableExtensions[i].extensionName, deviceExtensions[j]) == 0) {
+				printf("\n\tSUPPORTED DEVICE EXT : %s", availableExtensions[i].extensionName);
+				supportedExtensions++;
+				break;
+			}
+		}
+	}
+	printf("\n%d extensions supported of %d required extensions.", supportedExtensions, sizeof(deviceExtensions) / sizeof(deviceExtensions[0]));
+	return supportedExtensions;
+}
+
 const char **getRequiredExtensions(uint32_t *count) {
 	const char **SDL3Extensions;
 
@@ -93,7 +184,7 @@ QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
 }
 
 uint32_t isDeviceSuitable(VkPhysicalDevice device) {
-	uint32_t hasRequiredFeatures = 0;
+
 
 	VkPhysicalDeviceProperties deviceProperties;
 	vkGetPhysicalDeviceProperties(device, &deviceProperties);
@@ -102,14 +193,19 @@ uint32_t isDeviceSuitable(VkPhysicalDevice device) {
 	vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
 
 	QueueFamilyIndices indices = findQueueFamilies(device);
-	// TEST CONDITION! TODO: REMOVE
-	//if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
-		hasRequiredFeatures = 1;
-	//}
+	int extensionsCount = sizeof(deviceExtensions) / sizeof(deviceExtensions[0]);
+	int extensionsSupported = checkDeviceExtensionSupport(device);
 
+	int swapChainAdequate = 0;
+	if (extensionsSupported == extensionsCount) {
+		SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
+		// This check may not be reliable TODO : TEST
+		swapChainAdequate = swapChainSupport.presentModes[0] != NULL && swapChainSupport.formats->format != NULL;
+		printf("%d", swapChainAdequate);
+	}
 	// Device selection process
-	// Can be any integer, so compare if >= 0
-	return (indices.graphicsFamily > 0 && hasRequiredFeatures); // indices are offset by 1
+	// Can be any integer, so compare if >= 0 --If the No. of supporrted extensions = the amount of requested extensions. --- if swap chain is not null
+	return (indices.graphicsFamily > 0 && extensionsSupported == extensionsCount && swapChainAdequate == 1); // indices are offset by 1
 }
 
 void pickPhysicalDevice() {
@@ -254,7 +350,8 @@ void createLogicalDevice() {
 	createInfo.pQueueCreateInfos = queueCreateInfos;
 	createInfo.queueCreateInfoCount = sizeof(queueCreateInfos) / sizeof(queueCreateInfos[0]);
 	createInfo.pEnabledFeatures = &deviceFeatures;
-	createInfo.enabledExtensionCount = 0;
+	createInfo.ppEnabledExtensionNames = deviceExtensions;
+	createInfo.enabledExtensionCount = sizeof(deviceExtensions)/ sizeof(deviceExtensions[0]);
 
 	if (enableValidationLayers) {
 		createInfo.enabledLayerCount = sizeof(validationLayers) / sizeof(validationLayers[0]);
@@ -284,6 +381,35 @@ void createSurface() {
 	}
 }
 
+void createSwapChain() {
+	SwapChainSupportDetails swapChainSupport = querySwapChainSupport(physicalDevice);
+	
+	VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(&swapChainSupport.formats);
+
+	VkPresentModeKHR presentMode = chooseSwapPresentMode(&swapChainSupport.presentModes);
+
+	VkExtent2D extent = chooseSwapExtent(&swapChainSupport.capabilities);
+
+	uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
+	// 0 means there is no max
+	if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount) {
+		imageCount = swapChainSupport.capabilities.maxImageCount;
+	}
+
+	VkSwapchainCreateInfoKHR createInfo = { 0 };
+	createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+	createInfo.surface = surface;
+
+	createInfo.minImageCount = imageCount;
+	createInfo.imageFormat = surfaceFormat.format;
+	createInfo.imageColorSpace = surfaceFormat.colorSpace;
+	createInfo.imageExtent = extent;
+	createInfo.imageArrayLayers = 1;
+	createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	// Continue : https://vulkan-tutorial.com/Drawing_a_triangle/Presentation/Swap_chain
+}
+
+
 /* 
 	Function that creates the Vulkan instance. Must be called after
 	loading Vulkan via SDL3.
@@ -299,6 +425,8 @@ VkResult Vk_Init() {
 	pickPhysicalDevice();
 
 	createLogicalDevice();
+
+	createSwapChain();
 	return VK_SUCCESS;
 }
 

@@ -15,7 +15,7 @@
 
 	#ifdef DEBUG_VERBOSITY_ALL // No restruction to debug mode outputs
 		#define DEBUG_VERBOSITY 0 
-	#endif\
+	#endif
 
 	#ifdef DEBUG_VERBOSITY_CRITICAL // Only critical debug mode outpus will be logged
 		#define DEBUG_VERBOSITY 4096 
@@ -32,6 +32,12 @@ const char *validationLayers[] = {
 	"VK_LAYER_KHRONOS_validation",
 	//"VK_LAYER_LUNARG_crash_diagnostic"
 };
+
+// Device extensions needed for program to run properly
+const char *deviceExtensions[] = {
+	"VK_KHR_swapchain"
+};
+
 
 // Standard libraries
 #include <stdio.h>
@@ -58,6 +64,8 @@ typedef struct {
 	uint32_t presentFamily;
 } QueueFamilyIndices;
 
-
-
- 
+typedef struct {
+	VkSurfaceCapabilitiesKHR capabilities;
+	VkSurfaceFormatKHR *formats;
+	VkPresentModeKHR *presentModes;
+} SwapChainSupportDetails;
