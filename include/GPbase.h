@@ -51,6 +51,12 @@ const char *validationLayers[] = {
 // Header containing functions involving validation layers
 #include "ValidationLayers.h"
 
+enum deviceSuitableResult { PHYSICAL_DEVICE_NOT_SUITABLE, PHYSICAL_DEVICE_SUITABLE };
+
+typedef struct {
+	uint32_t graphicsFamily;
+} QueueFamilyIndices;
+
 
 
  

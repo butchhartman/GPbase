@@ -16,16 +16,8 @@ static SDL_Renderer* renderer = NULL;
 static VkInstance instance;
 VkDebugUtilsMessengerEXT debugMessenger;
 
-
-
-
-
-
-
-
-
-
-
+// This is the graphics card that will be rendered with
+VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 
 /*
 Returns a list of extensions needed by Vulkan for the application.
@@ -61,21 +53,80 @@ const char **getRequiredExtensions(uint32_t *count) {
 
 }
 
+QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
+	// Logic to find graphics queue family
+	QueueFamilyIndices indices = { NULL };
 
+	uint32_t queueFamilyCount = 0;
+	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, NULL);
 
+	VkQueueFamilyProperties *queueFamilies = (VkQueueFamilyProperties*)malloc(sizeof(VkQueueFamilyProperties) * queueFamilyCount);
+	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies);
 
-/* 
-	Function that creates the Vulkan instance. Must be called after
-	loading Vulkan via SDL3.
-*/
-VkResult Vk_Init() {
+	for (uint32_t i = 0; i < queueFamilyCount; i++) {
+		if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+			indices.graphicsFamily = i+1; // Adds one to have an offset so I can check truth by comparing it against 0
+		}
+	}
+
+	free(queueFamilies);
+	return indices;
+}
+
+uint32_t isDeviceSuitable(VkPhysicalDevice device) {
+	uint32_t hasRequiredFeatures = 0;
+
+	VkPhysicalDeviceProperties deviceProperties;
+	vkGetPhysicalDeviceProperties(device, &deviceProperties);
+
+	VkPhysicalDeviceFeatures deviceFeatures;
+	vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+
+	QueueFamilyIndices indices = findQueueFamilies(device);
+	// TEST CONDITION! TODO: REMOVE
+	if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+		hasRequiredFeatures = 1;
+	}
+
+	// Device selection process
+	return (indices.graphicsFamily > 0 && hasRequiredFeatures); // indices are offset by 1
+}
+
+void pickPhysicalDevice() {
+	uint32_t deviceCount = 0;
+	vkEnumeratePhysicalDevices(instance, &deviceCount, NULL);
+
+	if (deviceCount == 0) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to find a graphics card with Vulkan support!");
+		exit(VK_ERROR_FEATURE_NOT_PRESENT);
+	}
+
+	VkPhysicalDevice *availableDevices = (VkPhysicalDevice*)malloc(sizeof(VkPhysicalDevice) * deviceCount);
+	vkEnumeratePhysicalDevices(instance, &deviceCount, availableDevices);
+
+	for (uint32_t i = 0; i < deviceCount; i++) {
+		if (isDeviceSuitable(availableDevices[i])) {
+			physicalDevice = availableDevices[i];
+			break;
+		}
+	}
+
+	if (physicalDevice == VK_NULL_HANDLE) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to find a graphics card with Vulkan support!");
+		exit(VK_ERROR_FEATURE_NOT_PRESENT);
+	}
+
+	free(availableDevices);
+}
+
+void createInstance() {
 	if (enableValidationLayers) {
 		SDL_Log("=========Debug mode=========");
 	}
 
 	if (enableValidationLayers && !checkValidationLayerSupport()) {
 		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Validation layers requested, but not available.");
-		return VK_ERROR_LAYER_NOT_PRESENT;
+		exit(VK_ERROR_LAYER_NOT_PRESENT);
 	}
 
 
@@ -109,7 +160,7 @@ VkResult Vk_Init() {
 	// verification layers
 	if (enableValidationLayers) {
 		SDL_Log("Validation layers active.");
-		createInfo.enabledLayerCount = sizeof(validationLayers)/sizeof(validationLayers[0]);
+		createInfo.enabledLayerCount = sizeof(validationLayers) / sizeof(validationLayers[0]);
 		createInfo.ppEnabledLayerNames = validationLayers;
 
 		populateDebugMessengerCreateInfo(&debugCreateInfo);
@@ -123,23 +174,21 @@ VkResult Vk_Init() {
 	VkResult result = vkCreateInstance(&createInfo, NULL, &instance);
 	if (result != VK_SUCCESS) {
 		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to create Vulkan instance.");
-		return VK_ERROR_INITIALIZATION_FAILED;
+		exit(VK_ERROR_INITIALIZATION_FAILED);
 	}
 	else {
 		SDL_Log("Vulkan instance successfully created.");
 	}
 
-	setupDebugMessenger(instance, &debugMessenger);
+	// Skipped implementing the VK_ERROR_INCOMPATIBLE_DRIVER workaround. Dont know if it's necessary, sorry mac users.
 
-	// Skipped implementing the VK_ERROR_INCOMPATIBLE_DRIVER workaround. Dont know if it's necessary, sorry mac.
-
-	// Getting # of supported extensions and their names
+// Getting # of supported extensions and their names
 	uint32_t extensionCount = 0;
 	vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, NULL);
 
 	SDL_Log("%d extensions supported.", extensionCount);
 
-	VkExtensionProperties  *extensions = (VkExtensionProperties*)malloc(extensionCount * sizeof(VkExtensionProperties));
+	VkExtensionProperties* extensions = (VkExtensionProperties*)malloc(extensionCount * sizeof(VkExtensionProperties));
 
 	vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, extensions);
 
@@ -148,14 +197,24 @@ VkResult Vk_Init() {
 	}
 
 	SDL_Log("Vulkan initialized.");
-	
+
 	free(extensions);
-	return VK_SUCCESS;
+
 }
 
 
+/* 
+	Function that creates the Vulkan instance. Must be called after
+	loading Vulkan via SDL3.
+*/
+VkResult Vk_Init() {
+	createInstance();
 
+	setupDebugMessenger(instance, &debugMessenger);
 
+	pickPhysicalDevice();
+	return VK_SUCCESS;
+}
 
 
 
