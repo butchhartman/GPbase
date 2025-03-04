@@ -30,6 +30,18 @@ VkSurfaceKHR surface;
 
 // Handle to the presentQueue.
 VkQueue presentQueue;
+
+// Handle to the swapchain
+VkSwapchainKHR swapChain;
+
+// Array of swapchain images
+VkImage *swapChainImages;
+
+// In use format of the swapchain
+VkFormat swapChainImageFormat;
+// In use extent of the swapchain
+VkExtent2D swapChainExtent;
+
 /*
 Returns a list of extensions needed by Vulkan for the application.
 Assignes the passed count pointer to the number of extensions required.
@@ -167,14 +179,14 @@ QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
 
 	for (uint32_t i = 0; i < queueFamilyCount; i++) {
 		if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-			indices.graphicsFamily = i+1; // Adds one to have an offset so I can check truth by comparing it against 0
+			indices.graphicsFamily = i; // Adds one to have an offset so I can check truth by comparing it against 0
 		}
 
 		VkBool32 presentSupport = VK_FALSE;
 		vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
 
 		if (presentSupport) {
-			indices.presentFamily = i+1;
+			indices.presentFamily = i;
 		}
 
 	}
@@ -198,14 +210,16 @@ uint32_t isDeviceSuitable(VkPhysicalDevice device) {
 
 	int swapChainAdequate = 0;
 	if (extensionsSupported == extensionsCount) {
-		SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
+		SwapChainSupportDetails swapChainSupport = { 0 }; 
+		swapChainSupport = querySwapChainSupport(device);
 		// This check may not be reliable TODO : TEST
-		swapChainAdequate = swapChainSupport.presentModes[0] != NULL && swapChainSupport.formats->format != NULL;
+		swapChainAdequate = swapChainSupport.presentModes != NULL && swapChainSupport.formats != NULL;
 		printf("%d", swapChainAdequate);
-	}
+	} 
 	// Device selection process
+	// Idont think graphics family is properly being checked TODO : fix
 	// Can be any integer, so compare if >= 0 --If the No. of supporrted extensions = the amount of requested extensions. --- if swap chain is not null
-	return (indices.graphicsFamily > 0 && extensionsSupported == extensionsCount && swapChainAdequate == 1); // indices are offset by 1
+	return (indices.graphicsFamily >= 0 && extensionsSupported == extensionsCount && swapChainAdequate == 1); // indices are offset by 1
 }
 
 void pickPhysicalDevice() {
@@ -406,7 +420,49 @@ void createSwapChain() {
 	createInfo.imageExtent = extent;
 	createInfo.imageArrayLayers = 1;
 	createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-	// Continue : https://vulkan-tutorial.com/Drawing_a_triangle/Presentation/Swap_chain
+	
+	QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+	uint32_t quueueFamilyIndices[] = {
+		indices.graphicsFamily,
+		indices.presentFamily
+	};
+
+	if (indices.graphicsFamily != indices.presentFamily) {
+		createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+		createInfo.queueFamilyIndexCount = 2;
+		createInfo.pQueueFamilyIndices = quueueFamilyIndices;
+	}
+	else {
+		createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		createInfo.queueFamilyIndexCount = 0;
+		createInfo.pQueueFamilyIndices = NULL;
+	}
+
+	createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
+	createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	
+	createInfo.presentMode = presentMode;
+	createInfo.clipped = VK_TRUE;
+
+	// Swap chains must be recreated on window resize, so this would hold the old swapchain
+	createInfo.oldSwapchain = VK_NULL_HANDLE;
+
+	if (vkCreateSwapchainKHR(logicalDevice, &createInfo, NULL, &swapChain) != VK_SUCCESS) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to create swapchain.");
+		exit(VK_ERROR_INITIALIZATION_FAILED);
+	}
+
+	// Getting swapchain images
+	uint32_t swapchainImageCount = 0;
+	
+	vkGetSwapchainImagesKHR(logicalDevice, swapChain, &swapchainImageCount, NULL);
+
+	swapChainImages = (VkImage*)malloc(sizeof(VkImage) * swapchainImageCount);
+
+	vkGetSwapchainImagesKHR(logicalDevice, swapChain, &swapchainImageCount, swapChainImages);
+
+	swapChainImageFormat = surfaceFormat.colorSpace;
+	swapChainExtent = extent;
 }
 
 
@@ -508,7 +564,7 @@ void SDL_AppQuit(void* appstate, SDL_AppResult result) {
 	if (enableValidationLayers) {
 		DestroyDebugUtilsMessengerEXT(instance, debugMessenger, NULL);
 	}
-
+	vkDestroySwapchainKHR(logicalDevice, swapChain, NULL);
 	vkDestroyDevice(logicalDevice, NULL);
 	vkDestroySurfaceKHR(instance, surface, NULL);
 	vkDestroyInstance(instance, NULL);
