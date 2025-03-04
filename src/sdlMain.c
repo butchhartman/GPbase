@@ -19,9 +19,20 @@ VkDebugUtilsMessengerEXT debugMessenger;
 // This is the graphics card that will be rendered with
 VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 
+// Logical device that interfaces with the physical device
+VkDevice logicalDevice;
+
+// Handle to interface with the logicalDevice's auto-generated queue.
+VkQueue graphicsQueue;
+
+// The surface to present rendered images to.
+VkSurfaceKHR surface;
+
+// Handle to the presentQueue.
+VkQueue presentQueue;
 /*
 Returns a list of extensions needed by Vulkan for the application.
-Assignes the passes count pointer to the number of extensions required.
+Assignes the passed count pointer to the number of extensions required.
 If validation layers are enabled, appends VK_EXT_DEBUG_UTILS_EXTENSION_NAME to the
 end of the returned array and adds 1 to the count.
 */
@@ -67,6 +78,14 @@ QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
 		if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
 			indices.graphicsFamily = i+1; // Adds one to have an offset so I can check truth by comparing it against 0
 		}
+
+		VkBool32 presentSupport = VK_FALSE;
+		vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
+
+		if (presentSupport) {
+			indices.presentFamily = i+1;
+		}
+
 	}
 
 	free(queueFamilies);
@@ -84,11 +103,12 @@ uint32_t isDeviceSuitable(VkPhysicalDevice device) {
 
 	QueueFamilyIndices indices = findQueueFamilies(device);
 	// TEST CONDITION! TODO: REMOVE
-	if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+	//if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
 		hasRequiredFeatures = 1;
-	}
+	//}
 
 	// Device selection process
+	// Can be any integer, so compare if >= 0
 	return (indices.graphicsFamily > 0 && hasRequiredFeatures); // indices are offset by 1
 }
 
@@ -104,6 +124,7 @@ void pickPhysicalDevice() {
 	VkPhysicalDevice *availableDevices = (VkPhysicalDevice*)malloc(sizeof(VkPhysicalDevice) * deviceCount);
 	vkEnumeratePhysicalDevices(instance, &deviceCount, availableDevices);
 
+	// Sets the device to use as the first suitable one found
 	for (uint32_t i = 0; i < deviceCount; i++) {
 		if (isDeviceSuitable(availableDevices[i])) {
 			physicalDevice = availableDevices[i];
@@ -202,6 +223,66 @@ void createInstance() {
 
 }
 
+void createLogicalDevice() {
+	float queuePriority = 1.0f;
+	QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+
+	VkDeviceQueueCreateInfo queueCreateInfos[2];
+
+
+	// TODO : Future-proof
+	VkDeviceQueueCreateInfo queueCreateInfo = { 0 };
+	queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	queueCreateInfo.queueFamilyIndex = indices.graphicsFamily;
+	queueCreateInfo.queueCount = 1;
+	queueCreateInfo.pQueuePriorities = &queuePriority;
+	// These should not be explicitly stated, but generated. Only difference should be the family index
+	VkDeviceQueueCreateInfo queueCreateInfo2 = { 0 };
+	queueCreateInfo2.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	queueCreateInfo2.queueFamilyIndex = indices.presentFamily;
+	queueCreateInfo2.queueCount = 1;
+	queueCreateInfo2.pQueuePriorities = &queuePriority;
+
+	queueCreateInfos[0] = queueCreateInfo;
+	queueCreateInfos[1] = queueCreateInfo2;
+
+
+	VkPhysicalDeviceFeatures deviceFeatures = { VK_FALSE };
+
+	VkDeviceCreateInfo createInfo = { 0 };
+	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	createInfo.pQueueCreateInfos = queueCreateInfos;
+	createInfo.queueCreateInfoCount = sizeof(queueCreateInfos) / sizeof(queueCreateInfos[0]);
+	createInfo.pEnabledFeatures = &deviceFeatures;
+	createInfo.enabledExtensionCount = 0;
+
+	if (enableValidationLayers) {
+		createInfo.enabledLayerCount = sizeof(validationLayers) / sizeof(validationLayers[0]);
+		createInfo.ppEnabledLayerNames = validationLayers;
+	}
+	else {
+		createInfo.enabledLayerCount = 0;
+	}
+
+	if (vkCreateDevice(physicalDevice, &createInfo, NULL, &logicalDevice) != VK_SUCCESS) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to create logical device");
+		exit(VK_ERROR_INITIALIZATION_FAILED);
+	}
+	// the 0 index may cause issues because I offset the indices function.
+	vkGetDeviceQueue(logicalDevice, indices.graphicsFamily, 0, &graphicsQueue);
+	// This does not crash but it may not work... be wary
+	vkGetDeviceQueue(logicalDevice, indices.presentFamily, 0, &presentQueue);
+
+}
+
+void createSurface() {
+	// This function only returns success if the instance and window parameters are flipped....
+	// SDL_Vulkan_CreateSurface returns 0 upon success.
+	if (SDL_Vulkan_CreateSurface(window, instance, NULL, &surface) == 0) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to create a window surface.");
+		exit(VK_ERROR_INITIALIZATION_FAILED);
+	}
+}
 
 /* 
 	Function that creates the Vulkan instance. Must be called after
@@ -211,8 +292,13 @@ VkResult Vk_Init() {
 	createInstance();
 
 	setupDebugMessenger(instance, &debugMessenger);
+	
+	// Must be called right after create instance because it can influence physical device selection
+	createSurface();
 
 	pickPhysicalDevice();
+
+	createLogicalDevice();
 	return VK_SUCCESS;
 }
 
@@ -295,5 +381,7 @@ void SDL_AppQuit(void* appstate, SDL_AppResult result) {
 		DestroyDebugUtilsMessengerEXT(instance, debugMessenger, NULL);
 	}
 
+	vkDestroyDevice(logicalDevice, NULL);
+	vkDestroySurfaceKHR(instance, surface, NULL);
 	vkDestroyInstance(instance, NULL);
 }

@@ -55,6 +55,7 @@ enum deviceSuitableResult { PHYSICAL_DEVICE_NOT_SUITABLE, PHYSICAL_DEVICE_SUITAB
 
 typedef struct {
 	uint32_t graphicsFamily;
+	uint32_t presentFamily;
 } QueueFamilyIndices;
 
 
