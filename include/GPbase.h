@@ -66,12 +66,11 @@ typedef struct {
 // Validation layers
 const char* validationLayers[] = {
 	"VK_LAYER_KHRONOS_validation",
-	//"VK_LAYER_LUNARG_crash_diagnostic"
 };
 
 // Device extensions needed for program to run properly
 const char* deviceExtensions[] = {
-	"VK_KHR_swapchain"
+	"VK_KHR_swapchain",
 };
 
 // The dynamic states of the graphics pipeline.

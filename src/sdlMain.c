@@ -212,7 +212,7 @@ QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
 
 	for (uint32_t i = 0; i < queueFamilyCount; i++) {
 		if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-			indices.graphicsFamily = i; // Adds one to have an offset so I can check truth by comparing it against 0
+			indices.graphicsFamily = i; 
 		}
 
 		VkBool32 presentSupport = VK_FALSE;
@@ -246,7 +246,7 @@ uint32_t isDeviceSuitable(VkPhysicalDevice device) {
 		SwapChainSupportDetails swapChainSupport = { 0 }; 
 		swapChainSupport = querySwapChainSupport(device);
 		// This check may not be reliable TODO : TEST
-		swapChainAdequate = swapChainSupport.presentModes != NULL && swapChainSupport.formats != NULL;
+		swapChainAdequate = (swapChainSupport.presentModes != NULL && swapChainSupport.formats != NULL);
 		//printf("%d", swapChainAdequate);
 	} 
 	// Device selection process
@@ -426,6 +426,8 @@ void createSurface() {
 		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to create a window surface.");
 		exit(VK_ERROR_INITIALIZATION_FAILED);
 	}
+	printf("SURF ERR %s", SDL_GetError());
+
 }
 
 void createSwapChain() {
@@ -453,9 +455,9 @@ void createSwapChain() {
 	createInfo.imageExtent = extent;
 	createInfo.imageArrayLayers = 1;
 	createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-	
+
 	QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
-	uint32_t quueueFamilyIndices[] = {
+	uint32_t queueFamilyIndices[] = {
 		indices.graphicsFamily,
 		indices.presentFamily
 	};
@@ -463,7 +465,7 @@ void createSwapChain() {
 	if (indices.graphicsFamily != indices.presentFamily) {
 		createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
 		createInfo.queueFamilyIndexCount = 2;
-		createInfo.pQueueFamilyIndices = quueueFamilyIndices;
+		createInfo.pQueueFamilyIndices = queueFamilyIndices;
 	}
 	else {
 		createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -476,11 +478,14 @@ void createSwapChain() {
 	
 	createInfo.presentMode = presentMode;
 	createInfo.clipped = VK_TRUE;
-
+	
 	// Swap chains must be recreated on window resize, so this would hold the old swapchain
 	createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-	if (vkCreateSwapchainKHR(logicalDevice, &createInfo, NULL, &swapChain) != VK_SUCCESS) {
+	VkResult v = vkCreateSwapchainKHR(logicalDevice, &createInfo, NULL, &swapChain);
+	printf("\nCREATESWAPCHAIN RESUlT : %d\n", v);
+
+	if (v != VK_SUCCESS) {
 		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to create swapchain.");
 		exit(VK_ERROR_INITIALIZATION_FAILED);
 	}
@@ -759,9 +764,12 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 		SDL_Log("Couldn't initialize SDL: %s", SDL_GetError());
 		return SDL_APP_FAILURE;
 	}
-
+	
 	// Loads Vulkan by passing SDL_WINDOW_VULKAN as a window flag
-	if (!SDL_CreateWindowAndRenderer("examples/renderer/clear", DEFAULT_WIDTH, DEFAULT_HEIGHT, SDL_WINDOW_VULKAN, &window, &renderer)) {
+	window = SDL_CreateWindow("examples/renderer/clear", DEFAULT_WIDTH, DEFAULT_HEIGHT, SDL_WINDOW_VULKAN);
+	// this damn thing... renderer takes the place of swapchain and should not be created.
+	//if (!SDL_CreateWindowAndRenderer("examples/renderer/clear", DEFAULT_WIDTH, DEFAULT_HEIGHT, SDL_WINDOW_VULKAN, &window, &renderer)) {
+	if (window == NULL) {
 		SDL_Log("Couldn't create window/renderer: %s", SDL_GetError());
 		return SDL_APP_FAILURE;
 	}
@@ -793,19 +801,19 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event) {
 	Function ran once per frame by SDL. Similar to the Update() loop of game engines.
 */
 SDL_AppResult SDL_AppIterate(void* appstate) {
-	const double now = ((double)SDL_GetTicks()) / 1000.0f; // converts from ms to s
+	//const double now = ((double)SDL_GetTicks()) / 1000.0f; // converts from ms to s
 
-	// The RGB values of the color that is drawn. The sin functions make it fade
-	const float red = (float)(0.5 + 0.5 * SDL_sin(now));
-	const float green = (float)(0.5 + 0.5 * SDL_sin(now + SDL_PI_D * 2 / 3));
-	const float blue = (float)(0.5 + 0.5 * SDL_sin(now + SDL_PI_D * 4 / 3));
-	SDL_SetRenderDrawColorFloat(renderer, red, green, blue, SDL_ALPHA_OPAQUE_FLOAT); // new color, full alpha
+	//// The RGB values of the color that is drawn. The sin functions make it fade
+	//const float red = (float)(0.5 + 0.5 * SDL_sin(now));
+	//const float green = (float)(0.5 + 0.5 * SDL_sin(now + SDL_PI_D * 2 / 3));
+	//const float blue = (float)(0.5 + 0.5 * SDL_sin(now + SDL_PI_D * 4 / 3));
+	//SDL_SetRenderDrawColorFloat(renderer, red, green, blue, SDL_ALPHA_OPAQUE_FLOAT); // new color, full alpha
 
-	// Clears the window with the draw color
-	SDL_RenderClear(renderer);
+	//// Clears the window with the draw color
+	//SDL_RenderClear(renderer);
 
-	// Put the newly-cleared rendering to the screen.
-	SDL_RenderPresent(renderer);
+	//// Put the newly-cleared rendering to the screen.
+	//SDL_RenderPresent(renderer);
 
 	return SDL_APP_CONTINUE; // Carry on with the program
 }

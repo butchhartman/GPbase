@@ -13,13 +13,13 @@ ECHO %VK_SDK_PATH%
 
 ECHO Searching Vulkan SDK binary dir for glslc.exe...
 
-IF NOT EXIST %VK_SDK_PATH%/Bin/glslc.exe EXIT
+IF NOT EXIST "%VK_SDK_PATH%/Bin/glslc.exe" EXIT
 
 ECHO glslc.exe found
 ECHO Compiling shaders...
 
-%VK_SDK_PATH%/Bin/glslc.exe triangles.vert -o vert.spv
-%VK_SDK_PATH%/Bin/glslc.exe triangles.frag -o frag.spv
+"%VK_SDK_PATH%/Bin/glslc.exe" triangles.vert -o vert.spv
+"%VK_SDK_PATH%/Bin/glslc.exe" triangles.frag -o frag.spv
 
 ECHO Compilation finished
 
