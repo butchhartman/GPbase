@@ -27,16 +27,6 @@
 
 #endif
 
-// Validations layers
-const char *validationLayers[] = {
-	"VK_LAYER_KHRONOS_validation",
-	//"VK_LAYER_LUNARG_crash_diagnostic"
-};
-
-// Device extensions needed for program to run properly
-const char *deviceExtensions[] = {
-	"VK_KHR_swapchain"
-};
 
 
 // Standard libraries
@@ -57,6 +47,9 @@ const char *deviceExtensions[] = {
 // Header containing functions involving validation layers
 #include "ValidationLayers.h"
 
+#include "LoadShaders.h"
+
+
 enum deviceSuitableResult { PHYSICAL_DEVICE_NOT_SUITABLE, PHYSICAL_DEVICE_SUITABLE };
 
 typedef struct {
@@ -69,3 +62,21 @@ typedef struct {
 	VkSurfaceFormatKHR *formats;
 	VkPresentModeKHR *presentModes;
 } SwapChainSupportDetails;
+
+// Validation layers
+const char* validationLayers[] = {
+	"VK_LAYER_KHRONOS_validation",
+	//"VK_LAYER_LUNARG_crash_diagnostic"
+};
+
+// Device extensions needed for program to run properly
+const char* deviceExtensions[] = {
+	"VK_KHR_swapchain"
+};
+
+// The dynamic states of the graphics pipeline.
+// Essentially what values can by dynamically specified at draw time
+VkDynamicState dynamicStates[] = {
+	VK_DYNAMIC_STATE_VIEWPORT,
+	VK_DYNAMIC_STATE_SCISSOR
+};
