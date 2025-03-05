@@ -69,6 +69,13 @@ VkCommandPool commandPool;
 
 VkCommandBuffer commandBuffer;
 
+VkSemaphore imageAvailableSemaphore;
+VkSemaphore renderFinishedSemaphore;
+VkFence inFlightFence;
+
+
+
+
 VkShaderModule createShaderModule(const unsigned char* code, uint32_t size) {
 
 	VkShaderModuleCreateInfo createInfo = { 0 };
@@ -788,6 +795,18 @@ void createRenderPass() {
 	renderPassInfo.subpassCount = 1;
 	renderPassInfo.pSubpasses = &subpass;
 
+	VkSubpassDependency dependency = { 0 };
+	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+	dependency.dstSubpass = 0;
+
+	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependency.srcAccessMask = 0;
+
+	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+	renderPassInfo.pDependencies = &dependency;
+
 	if (vkCreateRenderPass(logicalDevice, &renderPassInfo, NULL, &renderPass) != VK_SUCCESS) {
 		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to create render pass");
 		exit(VK_ERROR_INITIALIZATION_FAILED);
@@ -848,6 +867,75 @@ void createCommandBuffer() {
 		exit(VK_ERROR_INITIALIZATION_FAILED);
 	}
 }
+
+void createSyncObjects() {
+	VkSemaphoreCreateInfo semaphoreInfo = { 0 };
+	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+	VkFenceCreateInfo fenceInfo = { 0 };
+	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+	if (vkCreateSemaphore(logicalDevice, &semaphoreInfo, NULL, &imageAvailableSemaphore) != VK_SUCCESS ||
+		vkCreateSemaphore(logicalDevice, &semaphoreInfo, NULL, &renderFinishedSemaphore) != VK_SUCCESS ||
+		vkCreateFence(logicalDevice, &fenceInfo, NULL, &inFlightFence) != VK_SUCCESS) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to create sync objects");
+		exit(VK_ERROR_INITIALIZATION_FAILED);
+	}
+}
+
+
+void drawFrame() {
+	// semaphores - gpu
+	// fences - cpu
+	vkWaitForFences(logicalDevice, 1, &inFlightFence, VK_TRUE, UINT64_MAX);
+	vkResetFences(logicalDevice, 1, &inFlightFence);
+
+	uint32_t imageIndex;
+	vkAcquireNextImageKHR(logicalDevice, swapChain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+
+	vkResetCommandBuffer(commandBuffer, 0);
+
+	recordCommandBuffer(commandBuffer, imageIndex);
+
+	VkSubmitInfo submitInfo = { 0 };
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+	VkSemaphore waitSemaphores[] = { imageAvailableSemaphore };
+	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+	submitInfo.waitSemaphoreCount = 1;
+	submitInfo.pWaitSemaphores = waitSemaphores;
+	submitInfo.pWaitDstStageMask = waitStages;
+
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffer;
+
+	VkSemaphore signalSemaphores[] = { renderFinishedSemaphore };
+	submitInfo.signalSemaphoreCount = 1;
+	submitInfo.pSignalSemaphores = signalSemaphores;
+
+	if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFence) != VK_SUCCESS) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to submit draw command buffer");
+		exit(VK_ERROR_UNKNOWN); 
+	}
+
+	VkPresentInfoKHR presentInfo = { 0 };
+	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	
+	presentInfo.waitSemaphoreCount = 1;
+	presentInfo.pWaitSemaphores = signalSemaphores;
+
+	VkSwapchainKHR swapChains[] = { swapChain };
+	presentInfo.swapchainCount = 1;
+	presentInfo.pSwapchains = swapChains;
+	presentInfo.pImageIndices = &imageIndex;
+	presentInfo.pResults = NULL;
+
+	vkQueuePresentKHR(presentQueue, &presentInfo);
+}
+
+
+
 /* 
 	Function that creates the Vulkan instance. Must be called after
 	loading Vulkan via SDL3.
@@ -877,6 +965,8 @@ VkResult Vk_Init() {
 	createCommandPool();
 
 	createCommandBuffer();
+
+	createSyncObjects();
 
 	return VK_SUCCESS;
 }
@@ -930,6 +1020,7 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event) {
 */
 SDL_AppResult SDL_AppIterate(void* appstate) {
 
+	drawFrame();
 
 	return SDL_APP_CONTINUE; // Carry on with the program
 }
@@ -940,6 +1031,7 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
 void SDL_AppQuit(void* appstate, SDL_AppResult result) {
 	// SDL cleans up the window/renderer for us
 	SDL_Log("Application terminating.");
+	vkDeviceWaitIdle(logicalDevice);
 	/*
 		I could never get the validation layers to proc an error when removing either
 		the destruction of the validation layer or the destruction of the instance....
@@ -957,7 +1049,9 @@ void SDL_AppQuit(void* appstate, SDL_AppResult result) {
 		vkDestroyFramebuffer(logicalDevice, swapChainFramebuffers[i], NULL);
 	}
 
-
+	vkDestroySemaphore(logicalDevice, imageAvailableSemaphore, NULL);
+	vkDestroySemaphore(logicalDevice, renderFinishedSemaphore, NULL);
+	vkDestroyFence(logicalDevice, inFlightFence, NULL);
 	vkDestroyCommandPool(logicalDevice, commandPool, NULL);
 	vkDestroyPipeline(logicalDevice, graphicsPipeline, NULL);
 	vkDestroyPipelineLayout(logicalDevice, pipelineLayout, NULL);
