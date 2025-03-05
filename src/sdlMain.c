@@ -64,6 +64,11 @@ VkPipeline graphicsPipeline;
 VkFramebuffer *swapChainFramebuffers;
 uint32_t swapChainFrameBuffersLength;
 
+// Reference to the command pool
+VkCommandPool commandPool;
+
+VkCommandBuffer commandBuffer;
+
 VkShaderModule createShaderModule(const unsigned char* code, uint32_t size) {
 
 	VkShaderModuleCreateInfo createInfo = { 0 };
@@ -258,6 +263,64 @@ uint32_t isDeviceSuitable(VkPhysicalDevice device) {
 	// Can be any integer, so compare if >= 0 --If the No. of supporrted extensions = the amount of requested extensions. --- if swap chain is not null
 	return (indices.graphicsFamily >= 0 && extensionsSupported == extensionsCount && swapChainAdequate == 1); // indices are offset by 1
 }
+
+void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
+	VkCommandBufferBeginInfo beginInfo = { 0 };
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = 0;
+	beginInfo.pInheritanceInfo = NULL;
+
+	if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to begin recording command buffer");
+		exit(VK_ERROR_INITIALIZATION_FAILED);
+	}
+
+	VkRenderPassBeginInfo renderPassInfo = { 0 };
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	renderPassInfo.renderPass = renderPass;
+	renderPassInfo.framebuffer = swapChainFramebuffers[imageIndex];
+
+	//renderPassInfo.renderArea.offset = { 0,0 }; should be zero by default
+	renderPassInfo.renderArea.extent = swapChainExtent;
+
+	VkClearValue clearColor = { {{0.0f, 0.0f, 0.0f, 1.0f}} };
+	renderPassInfo.clearValueCount = 1;
+	renderPassInfo.pClearValues = &clearColor;
+
+	// No error handling because all recording commands (vkCmd) return void
+	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+	
+	// Bind the graphics pipeline
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+
+	// I set the viewport and scissor state for this pipeline to be dynamic, so they must be specified before issuing a draw command
+	VkViewport viewport = { 0 };
+	viewport.x = 0.0f;
+	viewport.y = 0.0f;
+	viewport.width = (float)swapChainExtent.width;
+	viewport.height = (float)swapChainExtent.height;
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+	vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+	VkRect2D scissor = { 0 };
+	scissor.offset.x = 0;
+	scissor.offset.y = 0;
+	scissor.extent = swapChainExtent;
+	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+	// Here it is... draw command for the triangle.
+	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+
+	vkCmdEndRenderPass(commandBuffer);
+
+	// Now error checking can happen
+	if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to record command buffer");
+		exit(VK_ERROR_UNKNOWN);
+	}
+}
+
 
 void pickPhysicalDevice() {
 	uint32_t deviceCount = 0;
@@ -733,7 +796,8 @@ void createRenderPass() {
 
 void createFramebuffers() {
 	swapChainFramebuffers =
-	(VkFramebuffer*)malloc(sizeof(VkFramebuffer) * swapChainImageViewsLength);
+(VkFramebuffer*)malloc(sizeof(VkFramebuffer) * swapChainImageViewsLength);
+
 	swapChainFrameBuffersLength = swapChainImageViewsLength;
 
 	for (uint32_t i = 0; i < swapChainFrameBuffersLength; i++) {
@@ -759,9 +823,31 @@ void createFramebuffers() {
 }
 
 void createCommandPool() {
+	QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
 
+	VkCommandPoolCreateInfo poolInfo = { 0 };
+	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+	poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily;
+
+	if (vkCreateCommandPool(logicalDevice, &poolInfo, NULL, &commandPool) != VK_SUCCESS) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to create command pool");
+		exit(VK_ERROR_INITIALIZATION_FAILED);
+	}
 }
 
+void createCommandBuffer() {
+	VkCommandBufferAllocateInfo allocInfo = { 0 };
+	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	allocInfo.commandPool = commandPool;
+	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	allocInfo.commandBufferCount = 1;
+
+	if (vkAllocateCommandBuffers(logicalDevice, &allocInfo, &commandBuffer) != VK_SUCCESS) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to create command buffer");
+		exit(VK_ERROR_INITIALIZATION_FAILED);
+	}
+}
 /* 
 	Function that creates the Vulkan instance. Must be called after
 	loading Vulkan via SDL3.
@@ -789,6 +875,8 @@ VkResult Vk_Init() {
 	createFramebuffers();
 
 	createCommandPool();
+
+	createCommandBuffer();
 
 	return VK_SUCCESS;
 }
@@ -869,6 +957,8 @@ void SDL_AppQuit(void* appstate, SDL_AppResult result) {
 		vkDestroyFramebuffer(logicalDevice, swapChainFramebuffers[i], NULL);
 	}
 
+
+	vkDestroyCommandPool(logicalDevice, commandPool, NULL);
 	vkDestroyPipeline(logicalDevice, graphicsPipeline, NULL);
 	vkDestroyPipelineLayout(logicalDevice, pipelineLayout, NULL);
 	vkDestroyRenderPass(logicalDevice, renderPass, NULL);
