@@ -38,7 +38,7 @@ VkSwapchainKHR swapChain;
 
 // Array of swapchain images
 VkImage *swapChainImages;
-
+uint32_t swapChainImagesLength;
 // In use format of the swapchain
 VkFormat swapChainImageFormat;
 // In use extent of the swapchain
@@ -50,7 +50,7 @@ VkExtent2D swapChainExtent;
 // the image to access, for example if it should be treated
 // as a 2D texture depth texture without any mipmapping levels (vulkan-tutorial.com).
 VkImageView *swapChainImageViews;
-
+uint32_t swapChainImageViewsLength;
 // Reference to render pass
 VkRenderPass renderPass;
 
@@ -59,6 +59,10 @@ VkPipelineLayout pipelineLayout;
 
 // Reference to the graphics pipeline itself
 VkPipeline graphicsPipeline;
+
+//  Array of framebuffers for all images on the swapchain
+VkFramebuffer *swapChainFramebuffers;
+uint32_t swapChainFrameBuffersLength;
 
 VkShaderModule createShaderModule(const unsigned char* code, uint32_t size) {
 
@@ -496,6 +500,7 @@ void createSwapChain() {
 	vkGetSwapchainImagesKHR(logicalDevice, swapChain, &swapchainImageCount, NULL);
 
 	swapChainImages = (VkImage*)malloc(sizeof(VkImage) * swapchainImageCount);
+	swapChainImagesLength = swapchainImageCount;
 
 	vkGetSwapchainImagesKHR(logicalDevice, swapChain, &swapchainImageCount, swapChainImages);
 
@@ -504,9 +509,9 @@ void createSwapChain() {
 }
 
 void createImageViews() {
-	swapChainImageViews = (VkImageView*)malloc(sizeof(VkImage) * sizeof(swapChainImages) / sizeof(swapChainImages[0]));
-
-	for (uint32_t i = 0; i < sizeof(swapChainImages) / sizeof(swapChainImages[0]); i++) {
+	swapChainImageViews = (VkImageView*)malloc(sizeof(VkImage) * swapChainImagesLength);
+	swapChainImageViewsLength = swapChainImagesLength;
+	for (uint32_t i = 0; i < swapChainImagesLength; i++) {
 		VkImageViewCreateInfo createInfo = { 0 };
 		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 		createInfo.image = swapChainImages[i];
@@ -725,6 +730,38 @@ void createRenderPass() {
 		exit(VK_ERROR_INITIALIZATION_FAILED);
 	}
 }
+
+void createFramebuffers() {
+	swapChainFramebuffers =
+	(VkFramebuffer*)malloc(sizeof(VkFramebuffer) * swapChainImageViewsLength);
+	swapChainFrameBuffersLength = swapChainImageViewsLength;
+
+	for (uint32_t i = 0; i < swapChainFrameBuffersLength; i++) {
+		VkImageView attachments[] = {
+			swapChainImageViews[i]
+		};
+
+		VkFramebufferCreateInfo framebufferInfo = { 0 };
+		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		framebufferInfo.renderPass = renderPass;
+		framebufferInfo.attachmentCount = 1;
+		framebufferInfo.pAttachments = attachments;
+		framebufferInfo.width = swapChainExtent.width;
+		framebufferInfo.height = swapChainExtent.height;
+		framebufferInfo.layers = 1;
+
+
+		if (vkCreateFramebuffer(logicalDevice, &framebufferInfo, NULL, &swapChainFramebuffers[i]) != VK_SUCCESS) {
+			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to create framebuffer");
+			exit(VK_ERROR_INITIALIZATION_FAILED);
+		}
+	}
+}
+
+void createCommandPool() {
+
+}
+
 /* 
 	Function that creates the Vulkan instance. Must be called after
 	loading Vulkan via SDL3.
@@ -748,6 +785,11 @@ VkResult Vk_Init() {
 	createRenderPass();
 
 	createGraphicsPipeline();
+
+	createFramebuffers();
+
+	createCommandPool();
+
 	return VK_SUCCESS;
 }
 
@@ -767,8 +809,6 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 	
 	// Loads Vulkan by passing SDL_WINDOW_VULKAN as a window flag
 	window = SDL_CreateWindow("examples/renderer/clear", DEFAULT_WIDTH, DEFAULT_HEIGHT, SDL_WINDOW_VULKAN);
-	// this damn thing... renderer takes the place of swapchain and should not be created.
-	//if (!SDL_CreateWindowAndRenderer("examples/renderer/clear", DEFAULT_WIDTH, DEFAULT_HEIGHT, SDL_WINDOW_VULKAN, &window, &renderer)) {
 	if (window == NULL) {
 		SDL_Log("Couldn't create window/renderer: %s", SDL_GetError());
 		return SDL_APP_FAILURE;
@@ -801,19 +841,7 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event) {
 	Function ran once per frame by SDL. Similar to the Update() loop of game engines.
 */
 SDL_AppResult SDL_AppIterate(void* appstate) {
-	//const double now = ((double)SDL_GetTicks()) / 1000.0f; // converts from ms to s
 
-	//// The RGB values of the color that is drawn. The sin functions make it fade
-	//const float red = (float)(0.5 + 0.5 * SDL_sin(now));
-	//const float green = (float)(0.5 + 0.5 * SDL_sin(now + SDL_PI_D * 2 / 3));
-	//const float blue = (float)(0.5 + 0.5 * SDL_sin(now + SDL_PI_D * 4 / 3));
-	//SDL_SetRenderDrawColorFloat(renderer, red, green, blue, SDL_ALPHA_OPAQUE_FLOAT); // new color, full alpha
-
-	//// Clears the window with the draw color
-	//SDL_RenderClear(renderer);
-
-	//// Put the newly-cleared rendering to the screen.
-	//SDL_RenderPresent(renderer);
 
 	return SDL_APP_CONTINUE; // Carry on with the program
 }
@@ -833,8 +861,12 @@ void SDL_AppQuit(void* appstate, SDL_AppResult result) {
 		DestroyDebugUtilsMessengerEXT(instance, debugMessenger, NULL);
 	}
 	// the children yearn for for loops
-	for (uint32_t i = 0; i < sizeof(swapChainImageViews) / sizeof(swapChainImageViews[0]); i++) {
+	for (uint32_t i = 0; i < swapChainImageViewsLength; i++) {
 		vkDestroyImageView(logicalDevice, swapChainImageViews[i], NULL);
+	}
+
+	for (uint32_t i = 0; i < swapChainFrameBuffersLength; i++) {
+		vkDestroyFramebuffer(logicalDevice, swapChainFramebuffers[i], NULL);
 	}
 
 	vkDestroyPipeline(logicalDevice, graphicsPipeline, NULL);
