@@ -75,6 +75,14 @@ VkFence inFlightFence;
 
 
 
+/*
+* When moving funcs to separate headers : 
+* Document how to use the function in the header file, or more accurately close to the declaration.
+*
+* Document how the function works (if it's not obvious from the code) in the source file, or more accurately, close to the definition.
+*/
+
+
 
 VkShaderModule createShaderModule(const unsigned char* code, uint32_t size) {
 
@@ -117,8 +125,10 @@ VkPresentModeKHR chooseSwapPresentMode(const VkPresentModeKHR **availablePresent
 
 VkSurfaceFormatKHR chooseSwapSurfaceFormat(const VkSurfaceFormatKHR **availableFormats) {
 	// the children yearn for for loops...
-
+	printf("CHSSF : %d", sizeof(availableFormats) / sizeof(availableFormats[0]));
 	// return the one with our specs
+
+	// this only works coincidentally
 	for (uint32_t i = 0; i < sizeof(availableFormats) / sizeof(availableFormats[0]); i++) {
 		if (availableFormats[i]->format == VK_FORMAT_B8G8R8A8_SRGB &&
 			availableFormats[i]->format == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
@@ -182,11 +192,11 @@ int checkDeviceExtensionSupport(VkPhysicalDevice device) {
 	return supportedExtensions;
 }
 
-/*
-Returns a list of extensions needed by Vulkan for the application.
-Assignes the passed count pointer to the number of extensions required.
-If validation layers are enabled, appends VK_EXT_DEBUG_UTILS_EXTENSION_NAME to the
-end of the returned array and adds 1 to the count.
+/**
+* Returns a list of extensions needed by Vulkan for the application.
+* Assignes the passed count pointer to the number of extensions required.
+* If validation layers are enabled, appends VK_EXT_DEBUG_UTILS_EXTENSION_NAME to the
+* end of the returned array and adds 1 to the count.
 */
 const char **getRequiredExtensions(uint32_t *count) {
 	const char **SDL3Extensions;
@@ -329,6 +339,23 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
 }
 
 
+
+/*
+*	A physcial device in Vulkan is a representation of the host machine's physical graphics card.
+*	One can pick as many physical devices as are available and use them simultaneously.
+*	However, suitability checks must be performed to make sure the physical device can support the required Vulkan features.
+*	
+*	Additionally, Vulkan required nearly all commands to be submitted to a queue and it is required to
+*	check which queue families are supported by the physical device and if those families support the required features.
+* 
+*	There are different types of queues that come from queue families. These families are specialized and
+*	only allow a certain subset of commands (graphics, etc).
+* 
+*********************************************************************************************************************** 
+*	This function queries and enumerates available physical devices and checks their suitability by calling isDeviceSuitable.
+*	As previously stated
+***********************************************************************************************************************
+*/
 void pickPhysicalDevice() {
 	uint32_t deviceCount = 0;
 	vkEnumeratePhysicalDevices(instance, &deviceCount, NULL);
@@ -340,6 +367,10 @@ void pickPhysicalDevice() {
 
 	VkPhysicalDevice *availableDevices = (VkPhysicalDevice*)malloc(sizeof(VkPhysicalDevice) * deviceCount);
 	vkEnumeratePhysicalDevices(instance, &deviceCount, availableDevices);
+
+	/*
+	* TODO : Add check that exits if available devices is NULL to silence warning.
+	*/
 
 	// Sets the device to use as the first suitable one found
 	for (uint32_t i = 0; i < deviceCount; i++) {
@@ -357,6 +388,14 @@ void pickPhysicalDevice() {
 	free(availableDevices);
 }
 
+/*
+*	A Vulkan instance is the link between one's application and the vulkan library.
+*	
+*********************************************************************************************************************** 
+*	This function creates a vulkan instance with all the required extensions specified. Some extensions are required and their names provided by SDL
+*	Additionally, if debug mode is enabled, provides the instance with the required validation layers specified.
+***********************************************************************************************************************
+*/
 void createInstance() {
 	if (enableValidationLayers) {
 		SDL_Log("=========Debug mode=========");
@@ -420,7 +459,7 @@ void createInstance() {
 
 	// Skipped implementing the VK_ERROR_INCOMPATIBLE_DRIVER workaround. Dont know if it's necessary, sorry mac users.
 
-// Getting # of supported extensions and their names
+	// Getting # of supported extensions and their names
 	uint32_t extensionCount = 0;
 	vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, NULL);
 
@@ -439,7 +478,15 @@ void createInstance() {
 	free(extensions);
 
 }
-
+/*
+*	A logical device represents an instance of the physical device's Vulkan implementation.
+*	The logical device allows one to interface with the physical device.
+* 
+* **********************************************************************************************************************
+*	This function gets the queue families from the physical devicve and creates an array of (2 in this inflexible case)
+*	VKDevicequeueCreateInfo types. It then passes that info into the logical device's createInfo. Creates the logical device.
+* **********************************************************************************************************************
+*/
 void createLogicalDevice() {
 	float queuePriority = 1.0f;
 	QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
@@ -493,9 +540,16 @@ void createLogicalDevice() {
 
 }
 
+/*
+*	Vulkan does not care what platform the user is on. It cannot interface with a platform's window system on its own.
+*	To connect Vulkan and the window system, one must create a window surface using the platform-specific WSI extensions.
+*	These aforementioned extensions are typically retrieved from the window library in use. SDL in this case.
+* 
+**********************************************************************************************************************
+*	This function creates the surface via SDL's implementation of the create surface function.
+**********************************************************************************************************************
+*/
 void createSurface() {
-	// This function only returns success if the instance and window parameters are flipped....
-	// SDL_Vulkan_CreateSurface returns 0 upon success.
 	if (SDL_Vulkan_CreateSurface(window, instance, NULL, &surface) == 0) {
 		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to create a window surface.");
 		exit(VK_ERROR_INITIALIZATION_FAILED);
@@ -503,7 +557,15 @@ void createSurface() {
 	printf("SURF ERR %s", SDL_GetError());
 
 }
-
+/*
+*	The swap chain provides the ability to present rendering results to a surface via an array of images.
+*	It is essentially a queue of images waiting to be rendered.
+* 
+* *********************************************************************************************************************
+*	This function queries swap chain data from the physical device and uses it to create the swap chain.
+*	It also retrieves the queue families and sets the image sharing mode accordingly.
+* *********************************************************************************************************************
+*/
 void createSwapChain() {
 	SwapChainSupportDetails swapChainSupport = querySwapChainSupport(physicalDevice);
 	
@@ -578,6 +640,15 @@ void createSwapChain() {
 	swapChainExtent = extent;
 }
 
+/*
+*	An image view describes how to access an image and which part of that image to access.
+*	For example, an image view is what tells Vulkan that an accessed image should be treated as a 2D texture depth texture.
+* 
+* *********************************************************************************************************************
+*	This function creates an array of image views that is the same length as the swapChainImages array.
+*	In other words, creates one image view for each swap chain image
+* *********************************************************************************************************************
+*/
 void createImageViews() {
 	swapChainImageViews = (VkImageView*)malloc(sizeof(VkImage) * swapChainImagesLength);
 	swapChainImageViewsLength = swapChainImagesLength;
@@ -607,6 +678,18 @@ void createImageViews() {
 	}
 }
 
+/*
+*	The graphics pipeline is a sequence of operaions that take the vertices & textures of one's meshes
+*	all the way to to the pixels in the render targets.
+* 
+*	The minimum stage programming required is the vertex and fragment shader, as shown here.
+* 
+* *********************************************************************************************************************
+*	This function loads the fragment and vertex shaders, along with other info structs (color blending, multisampling, type of geometry to draw, etc)
+*	and uses it to create the graphics pipeline.
+* *********************************************************************************************************************
+*
+*/
 void createGraphicsPipeline() {
 	uint32_t vertShaderSize;
 	uint32_t fragShaderSize;
@@ -681,7 +764,7 @@ void createGraphicsPipeline() {
 	rasterizer.depthBiasClamp = 0.0f;
 	rasterizer.depthBiasSlopeFactor = 0.0f;
 
-	// Disabled for now, requires a GPU featire
+	// Disabled for now, requires a GPU feature
 	VkPipelineMultisampleStateCreateInfo multisampling = { 0 };
 	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 	multisampling.sampleShadingEnable = VK_FALSE;
@@ -765,7 +848,16 @@ void createGraphicsPipeline() {
 	free(fragShaderBin);
 
 }
-
+/*
+*	A render pass is an object that specifies information about the framebuffer attachments that will be used during rendering
+*	For example, how many color and depth buffers there will be, how many samples to use for them, and how their contents should be handled
+*	throughout rendering operations.
+* 
+* *********************************************************************************************************************
+*	This function creates colorAttachment, colorAttachmentRef, subpass, and renderPass info.
+*	The created info is then used to create a render pass.
+* *********************************************************************************************************************
+*/
 void createRenderPass() {
 
 	VkAttachmentDescription colorAttachment = { 0 };
@@ -813,13 +905,27 @@ void createRenderPass() {
 	}
 }
 
+/*
+*	A framebuffer object references all of the image views which represent all the framebuffer attachments. However, the attachment used depends on
+*	which image the swapchain returns when one is retrieved.
+* 
+*	Therefore, there must be one framebuffer for each image on the swapchain. The framebuffer corresponding to the
+*	retrieve image is the one that will be used. In other words, there must be one framebuffer that accesses images
+*	in the way described by the image views for each image on the swapchain.
+* 
+* *********************************************************************************************************************
+*	This function copies the attachments specified by the swapChainImageViews and creates a framebuffer for each image 
+*	on the swapchain (which is the same as the ).
+* *********************************************************************************************************************
+*
+*/
 void createFramebuffers() {
 	swapChainFramebuffers =
-(VkFramebuffer*)malloc(sizeof(VkFramebuffer) * swapChainImageViewsLength);
+	(VkFramebuffer*)malloc(sizeof(VkFramebuffer) * swapChainImageViewsLength);
 
 	swapChainFrameBuffersLength = swapChainImageViewsLength;
 
-	for (uint32_t i = 0; i < swapChainFrameBuffersLength; i++) {
+	for (uint32_t i = 0; i < swapChainImagesLength; i++) {
 		VkImageView attachments[] = {
 			swapChainImageViews[i]
 		};
@@ -840,7 +946,17 @@ void createFramebuffers() {
 		}
 	}
 }
-
+/*
+*	Commands in Vulkan are not directly executed, they are instead recorded into a command buffer and
+*	submitted together.
+* 
+*	Commands pools manage the memory that is used to store command buffers.
+* 
+* *********************************************************************************************************************
+*	This function creates a command pool for the graphics queue family.
+* *********************************************************************************************************************
+*
+*/
 void createCommandPool() {
 	QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
 
@@ -854,7 +970,14 @@ void createCommandPool() {
 		exit(VK_ERROR_INITIALIZATION_FAILED);
 	}
 }
-
+/*
+*	Command buffers store Vulkan rendering commands so they can be submitted all at once from the same place.
+* 
+* *********************************************************************************************************************
+*	This function uses the command pool to create a command buffer
+* *********************************************************************************************************************
+*
+*/
 void createCommandBuffer() {
 	VkCommandBufferAllocateInfo allocInfo = { 0 };
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -867,7 +990,18 @@ void createCommandBuffer() {
 		exit(VK_ERROR_INITIALIZATION_FAILED);
 	}
 }
-
+/*
+*	Vulkan leaves it to the user to handle synchronization. This is done by using fences and semaphores
+* 
+*	Semaphores - Either signaled or unsignaled, can be used by the GPU to perform commands sequentially
+* 
+*	Fences - Either signaled or unsignaled, can be used by the CPU to wait for a GPU command to finish.
+* 
+* *********************************************************************************************************************
+*	This function creates a semaphore and a fence.
+* *********************************************************************************************************************
+*
+*/
 void createSyncObjects() {
 	VkSemaphoreCreateInfo semaphoreInfo = { 0 };
 	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -937,8 +1071,8 @@ void drawFrame() {
 
 
 /* 
-	Function that creates the Vulkan instance. Must be called after
-	loading Vulkan via SDL3.
+	Function that initializes all the structures needed prior to
+	Vulkan outputting to the screen.
 */
 VkResult Vk_Init() {
 	createInstance();
