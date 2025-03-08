@@ -38,8 +38,6 @@
 #include "SDL3/SDL_main.h"
 #include "SDL3/SDL_vulkan.h"
 
-// Graphics math library
-#include "cglm/cglm.h"
 
 // 3D graphics API
 #include <vulkan/vulkan.h>
