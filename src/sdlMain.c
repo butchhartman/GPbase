@@ -81,9 +81,17 @@ VkFence inFlightFence;
 *
 * Document how the function works (if it's not obvious from the code) in the source file, or more accurately, close to the definition.
 */
+// TODO : Fix the memory leak
 
-
-
+/*
+* *********************************************************************************************************************
+*	When passed spv bytecode and the size of that code, creates and returns a VkShaderModule.
+* ********************************************************************************************************************
+* @param code - an unsigned char array containing the raw spv bytecode
+* @param size - a uint32_t representing the length of the code array.
+* 
+* @return VkShaderModule
+*/
 VkShaderModule createShaderModule(const unsigned char* code, uint32_t size) {
 
 	VkShaderModuleCreateInfo createInfo = { 0 };
@@ -100,7 +108,13 @@ VkShaderModule createShaderModule(const unsigned char* code, uint32_t size) {
 	
 	return shaderModule;
 }
-
+/*
+* *********************************************************************************************************************
+* This function returns a VkExtent2D describing the window width and height
+* *********************************************************************************************************************
+* @param capabilities - Currently has no function
+* @return VkExtent2D - Populated with window width and window height
+*/
 VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR* capabilities) {
 	
 	// TODO : revist this function to add more sophisticated procedures
@@ -117,21 +131,39 @@ VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR* capabilities) {
 	return actualExtent;
 }
 
+/*
+* *********************************************************************************************************************
+*	Returns an available swap present mode
+* *********************************************************************************************************************
+* 
+* @param availablePresentModes - Currently has no function
+* @return VkPresentModeKHR - Currently only returns mode FIFO
+* 
+*/
 VkPresentModeKHR chooseSwapPresentMode(const VkPresentModeKHR **availablePresentModes) {
 	// TODO : ADD SELECTION LOGIC
 	// Selection not needed because fifo is guaranteed.
 	return VK_PRESENT_MODE_FIFO_KHR;
 }
-
+/*
+* 
+* *********************************************************************************************************************
+*	Returns a surface format from the passed available formats that matches the selection parameters
+* *********************************************************************************************************************
+* 
+* @param availableFormats - An array of the available surface formats
+* @return VkSurfaceFormatKHR - An available format that matches the selection parameters
+* 
+*/
 VkSurfaceFormatKHR chooseSwapSurfaceFormat(const VkSurfaceFormatKHR **availableFormats) {
 	// the children yearn for for loops...
 	printf("CHSSF : %d", sizeof(availableFormats) / sizeof(availableFormats[0]));
 	// return the one with our specs
 
-	// this only works coincidentally
-	for (uint32_t i = 0; i < sizeof(availableFormats) / sizeof(availableFormats[0]); i++) {
+	
+	for (uint32_t i = 0; i < sizeof(availableFormats) / sizeof(availableFormats[0]); i++) { // TODO : I am getting extremely lucky that this works, pass the length of available formats instead of incorrectly calculating it here.
 		if (availableFormats[i]->format == VK_FORMAT_B8G8R8A8_SRGB &&
-			availableFormats[i]->format == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+			availableFormats[i]->format == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) { // TODO : THIS SHOULD BE COMPARING FORMAT AND COLOR SPACE! FIX
 			return *availableFormats[i];
 		}
 	}
@@ -140,7 +172,17 @@ VkSurfaceFormatKHR chooseSwapSurfaceFormat(const VkSurfaceFormatKHR **availableF
 	return *availableFormats[0];
 
 }
-
+/*
+* *********************************************************************************************************************
+*	Populates a SwapChainSupportDetails struct with the physical device's surface capabilities, the number of surface formats,
+*	and the number of present modes.
+* *********************************************************************************************************************
+* 
+* @param device - The physical device with which to query information
+* 
+* @return  SwapChainSupportDetails - The populated detail struct
+* 
+*/
 SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device) {
 	SwapChainSupportDetails details = { 0 };
 
@@ -153,7 +195,7 @@ SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device) {
 
 	if (formatCount != 0) {
 		details.formats = (VkSurfaceFormatKHR*)malloc(sizeof(VkSurfaceFormatKHR) * formatCount);
-		memset(details.formats, NULL, sizeof(VkSurfaceFormatKHR) * formatCount);
+		memset(details.formats, NULL, sizeof(VkSurfaceFormatKHR) * formatCount); // TODO : Remove unneeded memsets
 		vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, details.formats);
 	}
 
@@ -169,6 +211,15 @@ SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device) {
 	return details;
 }
 
+/*
+* *********************************************************************************************************************
+*	Enumerates the extensions supported by the physical device and compares it against the extensions required by the application.
+* *********************************************************************************************************************
+* 
+* @param device - The physical device with which to query data
+* 
+* @return supportedExtensions - The number of supported extensions
+*/
 int checkDeviceExtensionSupport(VkPhysicalDevice device) {
 	uint32_t extensionCount = 0;
 	vkEnumerateDeviceExtensionProperties(device, NULL, &extensionCount, NULL);
@@ -192,11 +243,16 @@ int checkDeviceExtensionSupport(VkPhysicalDevice device) {
 	return supportedExtensions;
 }
 
-/**
-* Returns a list of extensions needed by Vulkan for the application.
-* Assignes the passed count pointer to the number of extensions required.
-* If validation layers are enabled, appends VK_EXT_DEBUG_UTILS_EXTENSION_NAME to the
-* end of the returned array and adds 1 to the count.
+/*
+* Note : This function gets instance extensions, NOT device extensions
+* *********************************************************************************************************************
+*	Retrieves the required instance extensions by asking SDL which ones are needed.
+*	If validation layers are enabled, includes VK_EXT_debug_utils in the required extensions array.
+* *********************************************************************************************************************
+* 
+* @param count - A uint32_t which is assigned with the length of the required extensions array.
+* 
+* @return extensions - A const char** which contains the names of the required extensions
 */
 const char **getRequiredExtensions(uint32_t *count) {
 	const char **SDL3Extensions;
@@ -204,7 +260,7 @@ const char **getRequiredExtensions(uint32_t *count) {
 	SDL3Extensions = SDL_Vulkan_GetInstanceExtensions(count);
 
 	if (enableValidationLayers) {
-		const char **extensions = malloc(sizeof(const char*) * (*(count)+1));
+		const char **extensions = malloc(sizeof(const char*) * (*(count)+1)); // TODO : Fix weird use of parenthesis.
 
 
 		for (uint32_t i = 0; i < *count; i++) {
@@ -217,7 +273,7 @@ const char **getRequiredExtensions(uint32_t *count) {
 		}
 
 		*count += 1;
-
+		
 		return extensions;
 	}
 	else {
@@ -226,6 +282,17 @@ const char **getRequiredExtensions(uint32_t *count) {
 
 }
 
+
+/*
+* *********************************************************************************************************************
+*	Populates a QueueFamilyIndices struct with the indices of a graphics queue family and a present queue family who
+*	both meet the necessary requirements.
+* *********************************************************************************************************************
+* 
+* @param device - The phyiscal device with which to query information
+* 
+* @return QueueFamilyIndicies - A struct containing the graphicsFamily and presentFamily indices
+*/
 QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
 	// Logic to find graphics queue family
 	QueueFamilyIndices indices = { NULL };
@@ -237,7 +304,7 @@ QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
 	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies);
 
 	for (uint32_t i = 0; i < queueFamilyCount; i++) {
-		if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+		if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) { //TODO : Silence this warning.
 			indices.graphicsFamily = i; 
 		}
 
@@ -254,6 +321,16 @@ QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
 	return indices;
 }
 
+/*
+* *********************************************************************************************************************
+*	Determines if the physical device supports the queueFamilies, extensions, and swapchain requirements.
+* *********************************************************************************************************************
+* 
+* @params device - The physical device with which to query information
+* 
+* @return uint32_t - Returns 1 if physical device is suitable, 0 if not
+* 
+*/
 uint32_t isDeviceSuitable(VkPhysicalDevice device) {
 
 
@@ -278,7 +355,7 @@ uint32_t isDeviceSuitable(VkPhysicalDevice device) {
 	// Device selection process
 	// Idont think graphics family is properly being checked TODO : fix
 	// Can be any integer, so compare if >= 0 --If the No. of supporrted extensions = the amount of requested extensions. --- if swap chain is not null
-	return (indices.graphicsFamily >= 0 && extensionsSupported == extensionsCount && swapChainAdequate == 1); // indices are offset by 1
+	return (indices.graphicsFamily >= 0 && extensionsSupported == extensionsCount && swapChainAdequate == 1); // This may not work correctly.
 }
 
 void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
@@ -1018,7 +1095,12 @@ void createSyncObjects() {
 	}
 }
 
-
+/*
+* *********************************************************************************************************************
+*	Waits for the global inFlightFence fence to signal, then draws frame to screen by pulling an image from the swap chain and submitting it to the queue.
+*	Also creates two semaphores to wait for the image to be available and to wait for the render to finish.
+* *********************************************************************************************************************
+*/
 void drawFrame() {
 	// semaphores - gpu
 	// fences - cpu
