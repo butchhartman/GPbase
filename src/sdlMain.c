@@ -81,6 +81,7 @@ VkFence *inFlightFences;
 
 uint32_t currentFrame = 0;
 
+int frameBufferResized = 0;
 
 /*
 * When moving funcs to separate headers : 
@@ -130,10 +131,9 @@ VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR* capabilities) {
 
 	SDL_GetWindowSizeInPixels(window, &width, &height);
 
-	VkExtent2D actualExtent = {
-		(uint32_t)width,
-		(uint32_t)(height)
-	};
+	VkExtent2D actualExtent;
+	actualExtent.width = (uint32_t)width;
+	actualExtent.height = (uint32_t)height;
 
 	return actualExtent;
 }
@@ -1173,6 +1173,42 @@ void createSyncObjects() {
 	}
 }
 
+void cleanupSwapChain() {
+
+	for (uint32_t i = 0; i < swapChainImageViewsLength; i++) {
+		vkDestroyImageView(logicalDevice, swapChainImageViews[i], NULL);
+	}
+	free(swapChainImageViews);
+
+	for (uint32_t i = 0; i < swapChainFrameBuffersLength; i++) {
+		vkDestroyFramebuffer(logicalDevice, swapChainFramebuffers[i], NULL);
+	}
+	free(swapChainFramebuffers);
+
+	vkDestroySwapchainKHR(logicalDevice, swapChain, NULL);
+
+}
+
+
+void recreateSwapChain() {
+	// Do not recreate swapchain until window not minimized.
+	// The minimum size of the window is 1 so there should never be a time the window size is 0 besides minimization
+	SDL_WindowFlags minimizedFlagMask = SDL_GetWindowFlags(window);
+	if (SDL_WINDOW_MINIMIZED & minimizedFlagMask) {
+		return;
+	}
+	// TODO :  Note that we don't recreate the renderpass here for simplicity. In theory it can be possible for the swap chain image format to change during an applications' lifetime, e.g. when moving a window from an standard range to an high dynamic range monitor. This may require the application to recreate the renderpass to make sure the change between dynamic ranges is properly reflected.
+
+	vkDeviceWaitIdle(logicalDevice);
+
+	cleanupSwapChain();
+
+	createSwapChain();
+	createImageViews();
+	createFramebuffers();
+}
+
+
 /*
 * *********************************************************************************************************************
 *	Waits for the global inFlightFence fence to signal, then draws frame to screen by pulling an image from the swap chain and submitting it to the queue.
@@ -1183,11 +1219,22 @@ void drawFrame() {
 	// semaphores - gpu
 	// fences - cpu
 	vkWaitForFences(logicalDevice, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
-	vkResetFences(logicalDevice, 1, &inFlightFences[currentFrame]);
 
 	uint32_t imageIndex;
-	vkAcquireNextImageKHR(logicalDevice, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+
+	VkResult imageAcquireResult = vkAcquireNextImageKHR(logicalDevice, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 	
+	if (imageAcquireResult == VK_ERROR_OUT_OF_DATE_KHR) {
+		recreateSwapChain();
+		return;
+	}
+	else if (imageAcquireResult != VK_SUCCESS && imageAcquireResult != VK_SUBOPTIMAL_KHR) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to acquire swap chain image");
+		// Does not exit because VK_SUBOPTIMAL_KHR is considered a success return code.
+	}
+	// Only reset the fence if it is known that work will be submitted
+	vkResetFences(logicalDevice, 1, &inFlightFences[currentFrame]);
+
 	vkResetCommandBuffer(commandBuffers[currentFrame], 0);
 	
 	recordCommandBuffer(commandBuffers[currentFrame], imageIndex);
@@ -1224,10 +1271,19 @@ void drawFrame() {
 	presentInfo.pImageIndices = &imageIndex;
 	presentInfo.pResults = NULL;
 
-	vkQueuePresentKHR(presentQueue, &presentInfo);
+	VkResult queuePresentResult = vkQueuePresentKHR(presentQueue, &presentInfo);
+
+	if (queuePresentResult == VK_ERROR_OUT_OF_DATE_KHR || queuePresentResult == VK_SUBOPTIMAL_KHR || frameBufferResized) {
+		frameBufferResized = 0;
+		recreateSwapChain();
+	}
+	else if (queuePresentResult != VK_SUCCESS) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to present swap chain image");
+	}
 
 	currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
+
 
 
 
@@ -1274,18 +1330,20 @@ VkResult Vk_Init() {
 SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 
 	SDL_SetAppMetadata("Example Renderer Clear", "1.0", "com.example.renderer-clear");
-
+	
 	if (!SDL_Init(SDL_INIT_VIDEO)) {
 		SDL_Log("Couldn't initialize SDL: %s", SDL_GetError());
 		return SDL_APP_FAILURE;
 	}
 	
 	// Loads Vulkan by passing SDL_WINDOW_VULKAN as a window flag
-	window = SDL_CreateWindow("examples/renderer/clear", DEFAULT_WIDTH, DEFAULT_HEIGHT, SDL_WINDOW_VULKAN);
+	window = SDL_CreateWindow("examples/renderer/clear", DEFAULT_WIDTH, DEFAULT_HEIGHT, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
 	if (window == NULL) {
 		SDL_Log("Couldn't create window/renderer: %s", SDL_GetError());
 		return SDL_APP_FAILURE;
 	}
+	
+	SDL_SetWindowMinimumSize(window, 1, 1);
 
 	if (Vk_Init() != VK_SUCCESS) {
 		return SDL_APP_FAILURE;
@@ -1305,6 +1363,10 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event) {
 
 	if (event->type == SDL_EVENT_QUIT) {
 		return SDL_APP_SUCCESS; // Ends the program, reports a success to the OS. "Program ran successfully"
+	}
+
+	if (event->type == SDL_EVENT_WINDOW_RESIZED) {
+		frameBufferResized = 1;
 	}
 
 	return SDL_APP_CONTINUE; // Carry on with the program
@@ -1336,15 +1398,9 @@ void SDL_AppQuit(void* appstate, SDL_AppResult result) {
 		DestroyDebugUtilsMessengerEXT(instance, debugMessenger, NULL);
 	}
 	// the children yearn for for loops
-	for (uint32_t i = 0; i < swapChainImageViewsLength; i++) {
-		vkDestroyImageView(logicalDevice, swapChainImageViews[i], NULL);
-	}
-	free(swapChainImageViews);
 
-	for (uint32_t i = 0; i < swapChainFrameBuffersLength; i++) {
-		vkDestroyFramebuffer(logicalDevice, swapChainFramebuffers[i], NULL);
-	}
-	
+	cleanupSwapChain();
+
 	for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 		vkDestroySemaphore(logicalDevice, imageAvailableSemaphores[i], NULL);
 		vkDestroySemaphore(logicalDevice, renderFinishedSemaphores[i], NULL);
@@ -1354,7 +1410,6 @@ void SDL_AppQuit(void* appstate, SDL_AppResult result) {
 	free(renderFinishedSemaphores);
 	free(inFlightFences);
 
-	free(swapChainFramebuffers);
 	free(swapChainImages);
 
 	free(commandBuffers);
@@ -1362,7 +1417,6 @@ void SDL_AppQuit(void* appstate, SDL_AppResult result) {
 	vkDestroyPipeline(logicalDevice, graphicsPipeline, NULL);
 	vkDestroyPipelineLayout(logicalDevice, pipelineLayout, NULL);
 	vkDestroyRenderPass(logicalDevice, renderPass, NULL);
-	vkDestroySwapchainKHR(logicalDevice, swapChain, NULL);
 	vkDestroyDevice(logicalDevice, NULL);
 	vkDestroySurfaceKHR(instance, surface, NULL);
 	vkDestroyInstance(instance, NULL);
