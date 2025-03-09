@@ -72,12 +72,14 @@ uint32_t swapChainFrameBuffersLength;
 // Reference to the command pool
 VkCommandPool commandPool;
 
-VkCommandBuffer commandBuffer;
+// Arrays of multiple command buffers / semaphores/ fences
+VkCommandBuffer *commandBuffers;
 
-VkSemaphore imageAvailableSemaphore;
-VkSemaphore renderFinishedSemaphore;
-VkFence inFlightFence;
+VkSemaphore *imageAvailableSemaphores;
+VkSemaphore *renderFinishedSemaphores;
+VkFence *inFlightFences;
 
+uint32_t currentFrame = 0;
 
 
 /*
@@ -1117,14 +1119,16 @@ void createCommandPool() {
 * *********************************************************************************************************************
 *
 */
-void createCommandBuffer() {
+void createCommandBuffers() {
+	commandBuffers = (VkCommandBuffer*)malloc(sizeof(VkCommandBuffer) * MAX_FRAMES_IN_FLIGHT);// TODO : FREE
+
 	VkCommandBufferAllocateInfo allocInfo = { 0 };
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	allocInfo.commandPool = commandPool;
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	allocInfo.commandBufferCount = 1;
+	allocInfo.commandBufferCount = (uint32_t)MAX_FRAMES_IN_FLIGHT;
 
-	if (vkAllocateCommandBuffers(logicalDevice, &allocInfo, &commandBuffer) != VK_SUCCESS) {
+	if (vkAllocateCommandBuffers(logicalDevice, &allocInfo, commandBuffers) != VK_SUCCESS) {
 		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to create command buffer");
 		exit(VK_ERROR_INITIALIZATION_FAILED);
 	}
@@ -1142,6 +1146,10 @@ void createCommandBuffer() {
 *
 */
 void createSyncObjects() {
+	imageAvailableSemaphores = (VkSemaphore*)malloc(sizeof(VkSemaphore) * MAX_FRAMES_IN_FLIGHT);
+	renderFinishedSemaphores = (VkSemaphore*)malloc(sizeof(VkSemaphore) * MAX_FRAMES_IN_FLIGHT);
+	inFlightFences = (VkFence*)malloc(sizeof(VkFence) * MAX_FRAMES_IN_FLIGHT);
+
 	VkSemaphoreCreateInfo semaphoreInfo = { 0 };
 	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
@@ -1149,11 +1157,15 @@ void createSyncObjects() {
 	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-	if (vkCreateSemaphore(logicalDevice, &semaphoreInfo, NULL, &imageAvailableSemaphore) != VK_SUCCESS ||
-		vkCreateSemaphore(logicalDevice, &semaphoreInfo, NULL, &renderFinishedSemaphore) != VK_SUCCESS ||
-		vkCreateFence(logicalDevice, &fenceInfo, NULL, &inFlightFence) != VK_SUCCESS) {
-		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to create sync objects");
-		exit(VK_ERROR_INITIALIZATION_FAILED);
+	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+
+		if (vkCreateSemaphore(logicalDevice, &semaphoreInfo, NULL, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
+			vkCreateSemaphore(logicalDevice, &semaphoreInfo, NULL, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
+			vkCreateFence(logicalDevice, &fenceInfo, NULL, &inFlightFences[i]) != VK_SUCCESS) {
+			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to create sync objects");
+			exit(VK_ERROR_INITIALIZATION_FAILED);
+		}
+
 	}
 }
 
@@ -1166,33 +1178,32 @@ void createSyncObjects() {
 void drawFrame() {
 	// semaphores - gpu
 	// fences - cpu
-	vkWaitForFences(logicalDevice, 1, &inFlightFence, VK_TRUE, UINT64_MAX);
-	vkResetFences(logicalDevice, 1, &inFlightFence);
+	vkWaitForFences(logicalDevice, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+	vkResetFences(logicalDevice, 1, &inFlightFences[currentFrame]);
 
 	uint32_t imageIndex;
-	vkAcquireNextImageKHR(logicalDevice, swapChain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+	vkAcquireNextImageKHR(logicalDevice, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 	
-	vkResetCommandBuffer(commandBuffer, 0);
+	vkResetCommandBuffer(commandBuffers[currentFrame], 0);
 	
-	recordCommandBuffer(commandBuffer, imageIndex);
+	recordCommandBuffer(commandBuffers[currentFrame], imageIndex);
 
 	VkSubmitInfo submitInfo = { 0 };
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffers[currentFrame];
 
-	VkSemaphore waitSemaphores[] = { imageAvailableSemaphore };
+	VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[currentFrame]};
 	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 	submitInfo.waitSemaphoreCount = 1;
 	submitInfo.pWaitSemaphores = waitSemaphores;
 	submitInfo.pWaitDstStageMask = waitStages;
 
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffer;
-
-	VkSemaphore signalSemaphores[] = { renderFinishedSemaphore };
+	VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[currentFrame]};
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = signalSemaphores;
 
-	if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFence) != VK_SUCCESS) {
+	if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
 		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to submit draw command buffer");
 		exit(VK_ERROR_UNKNOWN); 
 	}
@@ -1210,6 +1221,8 @@ void drawFrame() {
 	presentInfo.pResults = NULL;
 
 	vkQueuePresentKHR(presentQueue, &presentInfo);
+
+	currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 
@@ -1242,7 +1255,7 @@ VkResult Vk_Init() {
 
 	createCommandPool();
 
-	createCommandBuffer();
+	createCommandBuffers();
 
 	createSyncObjects();
 
@@ -1327,11 +1340,15 @@ void SDL_AppQuit(void* appstate, SDL_AppResult result) {
 	for (uint32_t i = 0; i < swapChainFrameBuffersLength; i++) {
 		vkDestroyFramebuffer(logicalDevice, swapChainFramebuffers[i], NULL);
 	}
+	
+	for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		vkDestroySemaphore(logicalDevice, imageAvailableSemaphores[i], NULL);
+		vkDestroySemaphore(logicalDevice, renderFinishedSemaphores[i], NULL);
+		vkDestroyFence(logicalDevice, inFlightFences[i], NULL);
+	}
+
 	free(swapChainFramebuffers);
 	free(swapChainImages);
-	vkDestroySemaphore(logicalDevice, imageAvailableSemaphore, NULL);
-	vkDestroySemaphore(logicalDevice, renderFinishedSemaphore, NULL);
-	vkDestroyFence(logicalDevice, inFlightFence, NULL);
 	vkDestroyCommandPool(logicalDevice, commandPool, NULL);
 	vkDestroyPipeline(logicalDevice, graphicsPipeline, NULL);
 	vkDestroyPipelineLayout(logicalDevice, pipelineLayout, NULL);
