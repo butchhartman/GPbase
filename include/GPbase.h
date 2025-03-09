@@ -66,6 +66,9 @@ const char* validationLayers[] = {
 	"VK_LAYER_KHRONOS_validation",
 };
 
+const int numValidationLayers = sizeof(validationLayers) / sizeof(validationLayers[0]);
+
+
 // Device extensions needed for program to run properly
 const char* deviceExtensions[] = {
 	"VK_KHR_swapchain",

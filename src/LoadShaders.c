@@ -30,6 +30,11 @@ const unsigned char* readFileBin(const char* filename, unsigned int *size) {
 
 	printf("\nSize of malloc : %d\n", fileSize);
 
+	if (data == NULL) {
+		printf("\nFile has no data!\n");
+		return NULL;
+	}
+
 	fread(data, sizeof(unsigned char), fileSize, file_ptr);
 
 	//for (unsigned int i = 0; i < fileSize; i++) {

@@ -364,3 +364,6 @@ FodyWeavers.xsd
 
 # Ignore submodules when committing
 vendored/
+
+# Ignore compiled shader files
+*.spv

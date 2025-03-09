@@ -75,7 +75,23 @@ VkFence inFlightFence;
 
 
 
+/*
+* When moving funcs to separate headers : 
+* Document how to use the function in the header file, or more accurately close to the declaration.
+*
+* Document how the function works (if it's not obvious from the code) in the source file, or more accurately, close to the definition.
+*/
+// TODO : Fix the memory leak
 
+/*
+* *********************************************************************************************************************
+*	When passed spv bytecode and the size of that code, creates and returns a VkShaderModule.
+* ********************************************************************************************************************
+* @param code - an unsigned char array containing the raw spv bytecode
+* @param size - a uint32_t representing the length of the code array.
+* 
+* @return VkShaderModule
+*/
 VkShaderModule createShaderModule(const unsigned char* code, uint32_t size) {
 
 	VkShaderModuleCreateInfo createInfo = { 0 };
@@ -92,7 +108,13 @@ VkShaderModule createShaderModule(const unsigned char* code, uint32_t size) {
 	
 	return shaderModule;
 }
-
+/*
+* *********************************************************************************************************************
+* This function returns a VkExtent2D describing the window width and height
+* *********************************************************************************************************************
+* @param capabilities - Currently has no function
+* @return VkExtent2D - Populated with window width and window height
+*/
 VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR* capabilities) {
 	
 	// TODO : revist this function to add more sophisticated procedures
@@ -109,29 +131,61 @@ VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR* capabilities) {
 	return actualExtent;
 }
 
+/*
+* *********************************************************************************************************************
+*	Returns an available swap present mode
+* *********************************************************************************************************************
+* 
+* @param availablePresentModes - Currently has no function
+* @return VkPresentModeKHR - Currently only returns mode FIFO
+* 
+*/
 VkPresentModeKHR chooseSwapPresentMode(const VkPresentModeKHR **availablePresentModes) {
 	// TODO : ADD SELECTION LOGIC
 	// Selection not needed because fifo is guaranteed.
 	return VK_PRESENT_MODE_FIFO_KHR;
 }
-
-VkSurfaceFormatKHR chooseSwapSurfaceFormat(const VkSurfaceFormatKHR **availableFormats) {
+/*
+* 
+* *********************************************************************************************************************
+*	Returns a surface format from the passed available formats that matches the selection parameters
+* *********************************************************************************************************************
+* 
+* @param availableFormats - An array of the available surface formats
+* @param length - A uint32_t representing the length of the available format array
+* 
+* @return VkSurfaceFormatKHR - An available format that matches the selection parameters
+* 
+*/
+VkSurfaceFormatKHR chooseSwapSurfaceFormat(const VkSurfaceFormatKHR *availableFormats, uint32_t length) {
 	// the children yearn for for loops...
 
 	// return the one with our specs
-	for (uint32_t i = 0; i < sizeof(availableFormats) / sizeof(availableFormats[0]); i++) {
-		if (availableFormats[i]->format == VK_FORMAT_B8G8R8A8_SRGB &&
-			availableFormats[i]->format == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
-			return *availableFormats[i];
+	printf("%d", length);
+	for (uint32_t i = 0; i < length; i++) {
+		if (availableFormats[i].format == VK_FORMAT_B8G8R8A8_SRGB &&
+			availableFormats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) { 
+			return availableFormats[i];
 		}
 	}
 
 	// Otherwise return the first one lul
-	return *availableFormats[0];
+	return availableFormats[0];
 
 }
-
-SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device) {
+/*
+* *********************************************************************************************************************
+*	Populates a SwapChainSupportDetails struct with the physical device's surface capabilities, the surface formats' properties,
+*	and the present modes' properties.
+* *********************************************************************************************************************
+* 
+* @param device - The physical device with which to query information
+* @param count - Pointer to a uint32_t which is assigned the length of the formatcount
+* 
+* @return  SwapChainSupportDetails - The populated detail struct
+* 
+*/
+SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device, uint32_t* count) {
 	SwapChainSupportDetails details = { 0 };
 
 	// surface capabilities
@@ -141,9 +195,13 @@ SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device) {
 	uint32_t formatCount = 0;
 	vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, NULL);
 
+	if (count != NULL) {
+		*count = formatCount;
+	}
+
 	if (formatCount != 0) {
 		details.formats = (VkSurfaceFormatKHR*)malloc(sizeof(VkSurfaceFormatKHR) * formatCount);
-		memset(details.formats, NULL, sizeof(VkSurfaceFormatKHR) * formatCount);
+		//memset(details.formats, NULL, sizeof(VkSurfaceFormatKHR) * formatCount); // i feel like i needed these for some reason so I wont delete them yet
 		vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, details.formats);
 	}
 
@@ -153,12 +211,21 @@ SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device) {
 
 	if (presentCount != 0) {
 		details.presentModes = (VkPresentModeKHR*)malloc(sizeof(VkPresentModeKHR) * presentCount);
-		memset(details.presentModes, NULL, sizeof(VkPresentModeKHR) * presentCount);
+		//memset(details.presentModes, NULL, sizeof(VkPresentModeKHR) * presentCount);
 		vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentCount, details.presentModes);
 	}
 	return details;
 }
 
+/*
+* *********************************************************************************************************************
+*	Enumerates the extensions supported by the physical device and compares it against the extensions required by the application.
+* *********************************************************************************************************************
+* 
+* @param device - The physical device with which to query data
+* 
+* @return supportedExtensions - The number of supported extensions
+*/
 int checkDeviceExtensionSupport(VkPhysicalDevice device) {
 	uint32_t extensionCount = 0;
 	vkEnumerateDeviceExtensionProperties(device, NULL, &extensionCount, NULL);
@@ -166,8 +233,13 @@ int checkDeviceExtensionSupport(VkPhysicalDevice device) {
 	VkExtensionProperties *availableExtensions = (VkExtensionProperties*)malloc(sizeof(VkExtensionProperties) * extensionCount);
 	vkEnumerateDeviceExtensionProperties(device, NULL, &extensionCount, availableExtensions);
 
+	if (availableExtensions == NULL) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory for available extensions");
+		return NULL;
+	}
+
 	int supportedExtensions = 0;
-	printf("\n%d available extensions; %d required extensions\n", extensionCount, sizeof(deviceExtensions) / sizeof(deviceExtensions[0]));
+	printf("\n%d available extensions; %d required extensions\n", (int)extensionCount, (int)(sizeof(deviceExtensions) / sizeof(deviceExtensions[0]))); // Type casting to int to avoid warning
 	for (uint32_t i = 0; i < extensionCount; i++) {
 		//printf("\n\tDEVICE EXTENSION : %s", availableExtensions[i].extensionName);
 		for (uint32_t j = 0; j < sizeof(deviceExtensions) / sizeof(deviceExtensions[0]); j++) {
@@ -178,15 +250,20 @@ int checkDeviceExtensionSupport(VkPhysicalDevice device) {
 			}
 		}
 	}
-	printf("\n%d extensions supported of %d required extensions.\n", supportedExtensions, sizeof(deviceExtensions) / sizeof(deviceExtensions[0]));
+	printf("\n%d extensions supported of %d required extensions.\n", (int)supportedExtensions, (int)(sizeof(deviceExtensions) / sizeof(deviceExtensions[0])));
 	return supportedExtensions;
 }
 
 /*
-Returns a list of extensions needed by Vulkan for the application.
-Assignes the passed count pointer to the number of extensions required.
-If validation layers are enabled, appends VK_EXT_DEBUG_UTILS_EXTENSION_NAME to the
-end of the returned array and adds 1 to the count.
+* Note : This function gets instance extensions, NOT device extensions
+* *********************************************************************************************************************
+*	Retrieves the required instance extensions by asking SDL which ones are needed.
+*	If validation layers are enabled, includes VK_EXT_debug_utils in the required extensions array.
+* *********************************************************************************************************************
+* 
+* @param count - A uint32_t which is assigned with the length of the required extensions array.
+* 
+* @return extensions - A const char** which contains the names of the required extensions
 */
 const char **getRequiredExtensions(uint32_t *count) {
 	const char **SDL3Extensions;
@@ -194,8 +271,12 @@ const char **getRequiredExtensions(uint32_t *count) {
 	SDL3Extensions = SDL_Vulkan_GetInstanceExtensions(count);
 
 	if (enableValidationLayers) {
-		const char **extensions = malloc(sizeof(const char*) * (*(count)+1));
+		const char **extensions = malloc(sizeof(const char*) * (*(count)+1)); // TODO : Fix weird use of parenthesis.
 
+		if (extensions == NULL) {
+			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory for extensions");
+			return NULL;
+		}
 
 		for (uint32_t i = 0; i < *count; i++) {
 			extensions[i] = SDL3Extensions[i];
@@ -207,7 +288,7 @@ const char **getRequiredExtensions(uint32_t *count) {
 		}
 
 		*count += 1;
-
+		
 		return extensions;
 	}
 	else {
@@ -216,6 +297,17 @@ const char **getRequiredExtensions(uint32_t *count) {
 
 }
 
+
+/*
+* *********************************************************************************************************************
+*	Populates a QueueFamilyIndices struct with the indices of a graphics queue family and a present queue family who
+*	both meet the necessary requirements.
+* *********************************************************************************************************************
+* 
+* @param device - The phyiscal device with which to query information
+* 
+* @return QueueFamilyIndicies - A struct containing the graphicsFamily and presentFamily indices
+*/
 QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
 	// Logic to find graphics queue family
 	QueueFamilyIndices indices = { NULL };
@@ -226,8 +318,13 @@ QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
 	VkQueueFamilyProperties *queueFamilies = (VkQueueFamilyProperties*)malloc(sizeof(VkQueueFamilyProperties) * queueFamilyCount);
 	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies);
 
+	if (queueFamilies == NULL) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory for queue families");
+		return;
+	}
+
 	for (uint32_t i = 0; i < queueFamilyCount; i++) {
-		if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+		if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) { //TODO : Silence this warning.
 			indices.graphicsFamily = i; 
 		}
 
@@ -244,8 +341,17 @@ QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
 	return indices;
 }
 
+/*
+* *********************************************************************************************************************
+*	Determines if the physical device supports the queueFamilies, extensions, and swapchain requirements.
+* *********************************************************************************************************************
+* 
+* @params device - The physical device with which to query information
+* 
+* @return uint32_t - Returns 1 if physical device is suitable, 0 if not
+* 
+*/
 uint32_t isDeviceSuitable(VkPhysicalDevice device) {
-
 
 	VkPhysicalDeviceProperties deviceProperties;
 	vkGetPhysicalDeviceProperties(device, &deviceProperties);
@@ -260,7 +366,7 @@ uint32_t isDeviceSuitable(VkPhysicalDevice device) {
 	int swapChainAdequate = 0;
 	if (extensionsSupported == extensionsCount) {
 		SwapChainSupportDetails swapChainSupport = { 0 }; 
-		swapChainSupport = querySwapChainSupport(device);
+		swapChainSupport = querySwapChainSupport(device, NULL);
 		// This check may not be reliable TODO : TEST
 		swapChainAdequate = (swapChainSupport.presentModes != NULL && swapChainSupport.formats != NULL);
 		//printf("%d", swapChainAdequate);
@@ -268,7 +374,7 @@ uint32_t isDeviceSuitable(VkPhysicalDevice device) {
 	// Device selection process
 	// Idont think graphics family is properly being checked TODO : fix
 	// Can be any integer, so compare if >= 0 --If the No. of supporrted extensions = the amount of requested extensions. --- if swap chain is not null
-	return (indices.graphicsFamily >= 0 && extensionsSupported == extensionsCount && swapChainAdequate == 1); // indices are offset by 1
+	return (indices.graphicsFamily >= 0 && extensionsSupported == extensionsCount && swapChainAdequate == 1); // This may not work correctly.
 }
 
 void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
@@ -329,6 +435,23 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
 }
 
 
+
+/*
+*	A physcial device in Vulkan is a representation of the host machine's physical graphics card.
+*	One can pick as many physical devices as are available and use them simultaneously.
+*	However, suitability checks must be performed to make sure the physical device can support the required Vulkan features.
+*	
+*	Additionally, Vulkan required nearly all commands to be submitted to a queue and it is required to
+*	check which queue families are supported by the physical device and if those families support the required features.
+* 
+*	There are different types of queues that come from queue families. These families are specialized and
+*	only allow a certain subset of commands (graphics, etc).
+* 
+*********************************************************************************************************************** 
+*	This function queries and enumerates available physical devices and checks their suitability by calling isDeviceSuitable.
+*	As previously stated
+***********************************************************************************************************************
+*/
 void pickPhysicalDevice() {
 	uint32_t deviceCount = 0;
 	vkEnumeratePhysicalDevices(instance, &deviceCount, NULL);
@@ -340,6 +463,11 @@ void pickPhysicalDevice() {
 
 	VkPhysicalDevice *availableDevices = (VkPhysicalDevice*)malloc(sizeof(VkPhysicalDevice) * deviceCount);
 	vkEnumeratePhysicalDevices(instance, &deviceCount, availableDevices);
+
+	if (availableDevices == NULL) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory for available devices");
+		return NULL;
+	}
 
 	// Sets the device to use as the first suitable one found
 	for (uint32_t i = 0; i < deviceCount; i++) {
@@ -357,6 +485,14 @@ void pickPhysicalDevice() {
 	free(availableDevices);
 }
 
+/*
+*	A Vulkan instance is the link between one's application and the vulkan library.
+*	
+*********************************************************************************************************************** 
+*	This function creates a vulkan instance with all the required extensions specified. Some extensions are required and their names provided by SDL
+*	Additionally, if debug mode is enabled, provides the instance with the required validation layers specified.
+***********************************************************************************************************************
+*/
 void createInstance() {
 	if (enableValidationLayers) {
 		SDL_Log("=========Debug mode=========");
@@ -420,7 +556,7 @@ void createInstance() {
 
 	// Skipped implementing the VK_ERROR_INCOMPATIBLE_DRIVER workaround. Dont know if it's necessary, sorry mac users.
 
-// Getting # of supported extensions and their names
+	// Getting # of supported extensions and their names
 	uint32_t extensionCount = 0;
 	vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, NULL);
 
@@ -429,6 +565,11 @@ void createInstance() {
 	VkExtensionProperties* extensions = (VkExtensionProperties*)malloc(extensionCount * sizeof(VkExtensionProperties));
 
 	vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, extensions);
+
+	if (extensions == NULL) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory for supported extensions");
+		return;
+	}
 
 	for (uint32_t i = 0; i < extensionCount; i++) {
 		SDL_Log("\t%s - v%d", extensions[i].extensionName, extensions[i].specVersion);
@@ -439,7 +580,15 @@ void createInstance() {
 	free(extensions);
 
 }
-
+/*
+*	A logical device represents an instance of the physical device's Vulkan implementation.
+*	The logical device allows one to interface with the physical device.
+* 
+* **********************************************************************************************************************
+*	This function gets the queue families from the physical devicve and creates an array of (2 in this inflexible case)
+*	VKDevicequeueCreateInfo types. It then passes that info into the logical device's createInfo. Creates the logical device.
+* **********************************************************************************************************************
+*/
 void createLogicalDevice() {
 	float queuePriority = 1.0f;
 	QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
@@ -493,9 +642,16 @@ void createLogicalDevice() {
 
 }
 
+/*
+*	Vulkan does not care what platform the user is on. It cannot interface with a platform's window system on its own.
+*	To connect Vulkan and the window system, one must create a window surface using the platform-specific WSI extensions.
+*	These aforementioned extensions are typically retrieved from the window library in use. SDL in this case.
+* 
+**********************************************************************************************************************
+*	This function creates the surface via SDL's implementation of the create surface function.
+**********************************************************************************************************************
+*/
 void createSurface() {
-	// This function only returns success if the instance and window parameters are flipped....
-	// SDL_Vulkan_CreateSurface returns 0 upon success.
 	if (SDL_Vulkan_CreateSurface(window, instance, NULL, &surface) == 0) {
 		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to create a window surface.");
 		exit(VK_ERROR_INITIALIZATION_FAILED);
@@ -503,11 +659,21 @@ void createSurface() {
 	printf("SURF ERR %s", SDL_GetError());
 
 }
-
+/*
+*	The swap chain provides the ability to present rendering results to a surface via an array of images.
+*	It is essentially a queue of images waiting to be rendered.
+* 
+* *********************************************************************************************************************
+*	This function queries swap chain data from the physical device and uses it to create the swap chain.
+*	It also retrieves the queue families and sets the image sharing mode accordingly.
+* *********************************************************************************************************************
+*/
 void createSwapChain() {
-	SwapChainSupportDetails swapChainSupport = querySwapChainSupport(physicalDevice);
+	uint32_t surfaceFormatsLength = NULL;
+
+	SwapChainSupportDetails swapChainSupport = querySwapChainSupport(physicalDevice, &surfaceFormatsLength);
 	
-	VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(&swapChainSupport.formats);
+	VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats, surfaceFormatsLength);
 
 	VkPresentModeKHR presentMode = chooseSwapPresentMode(&swapChainSupport.presentModes);
 
@@ -578,8 +744,23 @@ void createSwapChain() {
 	swapChainExtent = extent;
 }
 
+/*
+*	An image view describes how to access an image and which part of that image to access.
+*	For example, an image view is what tells Vulkan that an accessed image should be treated as a 2D texture depth texture.
+* 
+* *********************************************************************************************************************
+*	This function creates an array of image views that is the same length as the swapChainImages array.
+*	In other words, creates one image view for each swap chain image
+* *********************************************************************************************************************
+*/
 void createImageViews() {
 	swapChainImageViews = (VkImageView*)malloc(sizeof(VkImage) * swapChainImagesLength);
+
+	if (swapChainImageViews == NULL) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory for image views");
+		return;
+	}
+
 	swapChainImageViewsLength = swapChainImagesLength;
 	for (uint32_t i = 0; i < swapChainImagesLength; i++) {
 		VkImageViewCreateInfo createInfo = { 0 };
@@ -607,6 +788,18 @@ void createImageViews() {
 	}
 }
 
+/*
+*	The graphics pipeline is a sequence of operaions that take the vertices & textures of one's meshes
+*	all the way to to the pixels in the render targets.
+* 
+*	The minimum stage programming required is the vertex and fragment shader, as shown here.
+* 
+* *********************************************************************************************************************
+*	This function loads the fragment and vertex shaders, along with other info structs (color blending, multisampling, type of geometry to draw, etc)
+*	and uses it to create the graphics pipeline.
+* *********************************************************************************************************************
+*
+*/
 void createGraphicsPipeline() {
 	uint32_t vertShaderSize;
 	uint32_t fragShaderSize;
@@ -681,7 +874,7 @@ void createGraphicsPipeline() {
 	rasterizer.depthBiasClamp = 0.0f;
 	rasterizer.depthBiasSlopeFactor = 0.0f;
 
-	// Disabled for now, requires a GPU featire
+	// Disabled for now, requires a GPU feature
 	VkPipelineMultisampleStateCreateInfo multisampling = { 0 };
 	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 	multisampling.sampleShadingEnable = VK_FALSE;
@@ -765,7 +958,16 @@ void createGraphicsPipeline() {
 	free(fragShaderBin);
 
 }
-
+/*
+*	A render pass is an object that specifies information about the framebuffer attachments that will be used during rendering
+*	For example, how many color and depth buffers there will be, how many samples to use for them, and how their contents should be handled
+*	throughout rendering operations.
+* 
+* *********************************************************************************************************************
+*	This function creates colorAttachment, colorAttachmentRef, subpass, and renderPass info.
+*	The created info is then used to create a render pass.
+* *********************************************************************************************************************
+*/
 void createRenderPass() {
 
 	VkAttachmentDescription colorAttachment = { 0 };
@@ -813,13 +1015,32 @@ void createRenderPass() {
 	}
 }
 
+/*
+*	A framebuffer object references all of the image views which represent all the framebuffer attachments. However, the attachment used depends on
+*	which image the swapchain returns when one is retrieved.
+* 
+*	Therefore, there must be one framebuffer for each image on the swapchain. The framebuffer corresponding to the
+*	retrieve image is the one that will be used. In other words, there must be one framebuffer that accesses images
+*	in the way described by the image views for each image on the swapchain.
+* 
+* *********************************************************************************************************************
+*	This function copies the attachments specified by the swapChainImageViews and creates a framebuffer for each image 
+*	on the swapchain (which is the same as the ).
+* *********************************************************************************************************************
+*
+*/
 void createFramebuffers() {
 	swapChainFramebuffers =
-(VkFramebuffer*)malloc(sizeof(VkFramebuffer) * swapChainImageViewsLength);
+	(VkFramebuffer*)malloc(sizeof(VkFramebuffer) * swapChainImageViewsLength);
 
 	swapChainFrameBuffersLength = swapChainImageViewsLength;
 
-	for (uint32_t i = 0; i < swapChainFrameBuffersLength; i++) {
+	if (swapChainFramebuffers == NULL) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory for swap chain frame buffers");
+		return;
+	}
+
+	for (uint32_t i = 0; i < swapChainImagesLength; i++) {
 		VkImageView attachments[] = {
 			swapChainImageViews[i]
 		};
@@ -840,7 +1061,17 @@ void createFramebuffers() {
 		}
 	}
 }
-
+/*
+*	Commands in Vulkan are not directly executed, they are instead recorded into a command buffer and
+*	submitted together.
+* 
+*	Commands pools manage the memory that is used to store command buffers.
+* 
+* *********************************************************************************************************************
+*	This function creates a command pool for the graphics queue family.
+* *********************************************************************************************************************
+*
+*/
 void createCommandPool() {
 	QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
 
@@ -854,7 +1085,14 @@ void createCommandPool() {
 		exit(VK_ERROR_INITIALIZATION_FAILED);
 	}
 }
-
+/*
+*	Command buffers store Vulkan rendering commands so they can be submitted all at once from the same place.
+* 
+* *********************************************************************************************************************
+*	This function uses the command pool to create a command buffer
+* *********************************************************************************************************************
+*
+*/
 void createCommandBuffer() {
 	VkCommandBufferAllocateInfo allocInfo = { 0 };
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -867,7 +1105,18 @@ void createCommandBuffer() {
 		exit(VK_ERROR_INITIALIZATION_FAILED);
 	}
 }
-
+/*
+*	Vulkan leaves it to the user to handle synchronization. This is done by using fences and semaphores
+* 
+*	Semaphores - Either signaled or unsignaled, can be used by the GPU to perform commands sequentially
+* 
+*	Fences - Either signaled or unsignaled, can be used by the CPU to wait for a GPU command to finish.
+* 
+* *********************************************************************************************************************
+*	This function creates a semaphore and a fence.
+* *********************************************************************************************************************
+*
+*/
 void createSyncObjects() {
 	VkSemaphoreCreateInfo semaphoreInfo = { 0 };
 	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -884,7 +1133,12 @@ void createSyncObjects() {
 	}
 }
 
-
+/*
+* *********************************************************************************************************************
+*	Waits for the global inFlightFence fence to signal, then draws frame to screen by pulling an image from the swap chain and submitting it to the queue.
+*	Also creates two semaphores to wait for the image to be available and to wait for the render to finish.
+* *********************************************************************************************************************
+*/
 void drawFrame() {
 	// semaphores - gpu
 	// fences - cpu
@@ -937,8 +1191,8 @@ void drawFrame() {
 
 
 /* 
-	Function that creates the Vulkan instance. Must be called after
-	loading Vulkan via SDL3.
+	Function that initializes all the structures needed prior to
+	Vulkan outputting to the screen.
 */
 VkResult Vk_Init() {
 	createInstance();
