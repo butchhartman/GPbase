@@ -152,38 +152,40 @@ VkPresentModeKHR chooseSwapPresentMode(const VkPresentModeKHR **availablePresent
 * *********************************************************************************************************************
 * 
 * @param availableFormats - An array of the available surface formats
+* @param length - A uint32_t representing the length of the available format array
+* 
 * @return VkSurfaceFormatKHR - An available format that matches the selection parameters
 * 
 */
-VkSurfaceFormatKHR chooseSwapSurfaceFormat(const VkSurfaceFormatKHR **availableFormats) {
+VkSurfaceFormatKHR chooseSwapSurfaceFormat(const VkSurfaceFormatKHR *availableFormats, uint32_t length) {
 	// the children yearn for for loops...
-	printf("CHSSF : %d", sizeof(availableFormats) / sizeof(availableFormats[0]));
-	// return the one with our specs
 
-	
-	for (uint32_t i = 0; i < sizeof(availableFormats) / sizeof(availableFormats[0]); i++) { // TODO : I am getting extremely lucky that this works, pass the length of available formats instead of incorrectly calculating it here.
-		if (availableFormats[i]->format == VK_FORMAT_B8G8R8A8_SRGB &&
-			availableFormats[i]->format == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) { // TODO : THIS SHOULD BE COMPARING FORMAT AND COLOR SPACE! FIX
-			return *availableFormats[i];
+	// return the one with our specs
+	printf("%d", length);
+	for (uint32_t i = 0; i < length; i++) {
+		if (availableFormats[i].format == VK_FORMAT_B8G8R8A8_SRGB &&
+			availableFormats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) { 
+			return availableFormats[i];
 		}
 	}
 
 	// Otherwise return the first one lul
-	return *availableFormats[0];
+	return availableFormats[0];
 
 }
 /*
 * *********************************************************************************************************************
-*	Populates a SwapChainSupportDetails struct with the physical device's surface capabilities, the number of surface formats,
-*	and the number of present modes.
+*	Populates a SwapChainSupportDetails struct with the physical device's surface capabilities, the surface formats' properties,
+*	and the present modes' properties.
 * *********************************************************************************************************************
 * 
 * @param device - The physical device with which to query information
+* @param count - Pointer to a uint32_t which is assigned the length of the formatcount
 * 
 * @return  SwapChainSupportDetails - The populated detail struct
 * 
 */
-SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device) {
+SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device, uint32_t* count) {
 	SwapChainSupportDetails details = { 0 };
 
 	// surface capabilities
@@ -193,9 +195,13 @@ SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device) {
 	uint32_t formatCount = 0;
 	vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, NULL);
 
+	if (count != NULL) {
+		*count = formatCount;
+	}
+
 	if (formatCount != 0) {
 		details.formats = (VkSurfaceFormatKHR*)malloc(sizeof(VkSurfaceFormatKHR) * formatCount);
-		memset(details.formats, NULL, sizeof(VkSurfaceFormatKHR) * formatCount); // TODO : Remove unneeded memsets
+		//memset(details.formats, NULL, sizeof(VkSurfaceFormatKHR) * formatCount); // i feel like i needed these for some reason so I wont delete them yet
 		vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, details.formats);
 	}
 
@@ -205,7 +211,7 @@ SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device) {
 
 	if (presentCount != 0) {
 		details.presentModes = (VkPresentModeKHR*)malloc(sizeof(VkPresentModeKHR) * presentCount);
-		memset(details.presentModes, NULL, sizeof(VkPresentModeKHR) * presentCount);
+		//memset(details.presentModes, NULL, sizeof(VkPresentModeKHR) * presentCount);
 		vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentCount, details.presentModes);
 	}
 	return details;
@@ -227,8 +233,13 @@ int checkDeviceExtensionSupport(VkPhysicalDevice device) {
 	VkExtensionProperties *availableExtensions = (VkExtensionProperties*)malloc(sizeof(VkExtensionProperties) * extensionCount);
 	vkEnumerateDeviceExtensionProperties(device, NULL, &extensionCount, availableExtensions);
 
+	if (availableExtensions == NULL) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory for available extensions");
+		return NULL;
+	}
+
 	int supportedExtensions = 0;
-	printf("\n%d available extensions; %d required extensions\n", extensionCount, sizeof(deviceExtensions) / sizeof(deviceExtensions[0]));
+	printf("\n%d available extensions; %d required extensions\n", (int)extensionCount, (int)(sizeof(deviceExtensions) / sizeof(deviceExtensions[0]))); // Type casting to int to avoid warning
 	for (uint32_t i = 0; i < extensionCount; i++) {
 		//printf("\n\tDEVICE EXTENSION : %s", availableExtensions[i].extensionName);
 		for (uint32_t j = 0; j < sizeof(deviceExtensions) / sizeof(deviceExtensions[0]); j++) {
@@ -239,7 +250,7 @@ int checkDeviceExtensionSupport(VkPhysicalDevice device) {
 			}
 		}
 	}
-	printf("\n%d extensions supported of %d required extensions.\n", supportedExtensions, sizeof(deviceExtensions) / sizeof(deviceExtensions[0]));
+	printf("\n%d extensions supported of %d required extensions.\n", (int)supportedExtensions, (int)(sizeof(deviceExtensions) / sizeof(deviceExtensions[0])));
 	return supportedExtensions;
 }
 
@@ -262,6 +273,10 @@ const char **getRequiredExtensions(uint32_t *count) {
 	if (enableValidationLayers) {
 		const char **extensions = malloc(sizeof(const char*) * (*(count)+1)); // TODO : Fix weird use of parenthesis.
 
+		if (extensions == NULL) {
+			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory for extensions");
+			return NULL;
+		}
 
 		for (uint32_t i = 0; i < *count; i++) {
 			extensions[i] = SDL3Extensions[i];
@@ -303,6 +318,11 @@ QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
 	VkQueueFamilyProperties *queueFamilies = (VkQueueFamilyProperties*)malloc(sizeof(VkQueueFamilyProperties) * queueFamilyCount);
 	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies);
 
+	if (queueFamilies == NULL) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory for queue families");
+		return;
+	}
+
 	for (uint32_t i = 0; i < queueFamilyCount; i++) {
 		if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) { //TODO : Silence this warning.
 			indices.graphicsFamily = i; 
@@ -333,7 +353,6 @@ QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
 */
 uint32_t isDeviceSuitable(VkPhysicalDevice device) {
 
-
 	VkPhysicalDeviceProperties deviceProperties;
 	vkGetPhysicalDeviceProperties(device, &deviceProperties);
 
@@ -347,7 +366,7 @@ uint32_t isDeviceSuitable(VkPhysicalDevice device) {
 	int swapChainAdequate = 0;
 	if (extensionsSupported == extensionsCount) {
 		SwapChainSupportDetails swapChainSupport = { 0 }; 
-		swapChainSupport = querySwapChainSupport(device);
+		swapChainSupport = querySwapChainSupport(device, NULL);
 		// This check may not be reliable TODO : TEST
 		swapChainAdequate = (swapChainSupport.presentModes != NULL && swapChainSupport.formats != NULL);
 		//printf("%d", swapChainAdequate);
@@ -445,9 +464,10 @@ void pickPhysicalDevice() {
 	VkPhysicalDevice *availableDevices = (VkPhysicalDevice*)malloc(sizeof(VkPhysicalDevice) * deviceCount);
 	vkEnumeratePhysicalDevices(instance, &deviceCount, availableDevices);
 
-	/*
-	* TODO : Add check that exits if available devices is NULL to silence warning.
-	*/
+	if (availableDevices == NULL) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory for available devices");
+		return NULL;
+	}
 
 	// Sets the device to use as the first suitable one found
 	for (uint32_t i = 0; i < deviceCount; i++) {
@@ -545,6 +565,11 @@ void createInstance() {
 	VkExtensionProperties* extensions = (VkExtensionProperties*)malloc(extensionCount * sizeof(VkExtensionProperties));
 
 	vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, extensions);
+
+	if (extensions == NULL) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory for supported extensions");
+		return;
+	}
 
 	for (uint32_t i = 0; i < extensionCount; i++) {
 		SDL_Log("\t%s - v%d", extensions[i].extensionName, extensions[i].specVersion);
@@ -644,9 +669,11 @@ void createSurface() {
 * *********************************************************************************************************************
 */
 void createSwapChain() {
-	SwapChainSupportDetails swapChainSupport = querySwapChainSupport(physicalDevice);
+	uint32_t surfaceFormatsLength = NULL;
+
+	SwapChainSupportDetails swapChainSupport = querySwapChainSupport(physicalDevice, &surfaceFormatsLength);
 	
-	VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(&swapChainSupport.formats);
+	VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats, surfaceFormatsLength);
 
 	VkPresentModeKHR presentMode = chooseSwapPresentMode(&swapChainSupport.presentModes);
 
@@ -728,6 +755,12 @@ void createSwapChain() {
 */
 void createImageViews() {
 	swapChainImageViews = (VkImageView*)malloc(sizeof(VkImage) * swapChainImagesLength);
+
+	if (swapChainImageViews == NULL) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory for image views");
+		return;
+	}
+
 	swapChainImageViewsLength = swapChainImagesLength;
 	for (uint32_t i = 0; i < swapChainImagesLength; i++) {
 		VkImageViewCreateInfo createInfo = { 0 };
@@ -1001,6 +1034,11 @@ void createFramebuffers() {
 	(VkFramebuffer*)malloc(sizeof(VkFramebuffer) * swapChainImageViewsLength);
 
 	swapChainFrameBuffersLength = swapChainImageViewsLength;
+
+	if (swapChainFramebuffers == NULL) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory for swap chain frame buffers");
+		return;
+	}
 
 	for (uint32_t i = 0; i < swapChainImagesLength; i++) {
 		VkImageView attachments[] = {
