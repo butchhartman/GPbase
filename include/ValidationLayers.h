@@ -13,6 +13,7 @@ extern const int enableValidationLayers;
 Externally accessed from GPbase.h
 */
 extern const char *validationLayers[];
+extern const int numValidationLayers;
 
 /*
 Gets the vkDestroyDebugUtilsMessengerEXT function

@@ -102,10 +102,16 @@ uint32_t checkValidationLayerSupport() {
 	VkLayerProperties* availableLayers = (VkLayerProperties*)malloc(layerCount * sizeof(VkLayerProperties));
 	vkEnumerateInstanceLayerProperties(&layerCount, availableLayers);
 
+	if (availableLayers == NULL) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory for available layers");
+		return NULL;
+	}
+
 	SDL_Log("%d available validation layers.", layerCount);
 
+
 	for (uint32_t i = 0; i < layerCount; i++) {
-		SDL_Log("\t%s", availableLayers[i]);
+		SDL_Log("\t%s", availableLayers[i].layerName);
 	}
 
 	uint32_t layerFound = 0;
@@ -113,7 +119,7 @@ uint32_t checkValidationLayerSupport() {
 	for (uint32_t i = 0; i < layerCount; i++) {
 		//	SDL_Log("Finding validation layer %d...", i);
 					//validation layers had to be dereferenced for this to work for some reason...
-		for (uint32_t j = 0; j < sizeof(*validationLayers) / sizeof(validationLayers[0]); j++) {
+		for (uint32_t j = 0; j < numValidationLayers; j++) {
 
 			if (strcmp(availableLayers[i].layerName, validationLayers[j]) == 0) {
 				layerFound = 1;
