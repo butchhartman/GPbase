@@ -7,6 +7,11 @@
 #define DEBUG_MODE
 #define DEBUG_VERBOSITY_WARNING
 
+/*
+* Through testing I have determined that the validation layers are causing memory leaks. 
+* No idea why but at least the problems isnt serious since they can be disabled.
+*/
+
 #include <GPbase.h>
 
 // TODO : Use libshaderc to compile shaders instead of batch file
@@ -267,12 +272,16 @@ int checkDeviceExtensionSupport(VkPhysicalDevice device) {
 * @return extensions - A const char** which contains the names of the required extensions
 */
 const char **getRequiredExtensions(uint32_t *count) {
+	/*
+	* This const char ** should never be freed because it points to an array owned by SDL.
+	* This array should not be freed.
+	*/
 	const char **SDL3Extensions;
 
 	SDL3Extensions = SDL_Vulkan_GetInstanceExtensions(count);
 
 	if (enableValidationLayers) {
-		const char **extensions = malloc(sizeof(const char*) * (*(count)+1)); // TODO : Fix weird use of parenthesis.
+		const char **extensions = malloc(sizeof(const char*) * (*count+1));
 
 		if (extensions == NULL) {
 			SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory for extensions");
@@ -289,7 +298,6 @@ const char **getRequiredExtensions(uint32_t *count) {
 		}
 
 		*count += 1;
-		
 		return extensions;
 	}
 	else {
@@ -581,7 +589,17 @@ void createInstance() {
 	SDL_Log("Vulkan initialized.");
 
 	free(extensions);
-	free(SDL3Extensions);
+
+	if (enableValidationLayers) {
+		/*
+		*	This is only freed because when validation layers are active, the SDL internal extensions array
+		*	is duplicated so the validation layer extensions can be appended. Therefore, I (instead of SDL)
+		*	own the array which can be freed.
+		* 
+		*	Ts pmo ...
+		*/
+		free(SDL3Extensions);
+	}
 }
 /*
 *	A logical device represents an instance of the physical device's Vulkan implementation.
@@ -1153,9 +1171,9 @@ void drawFrame() {
 
 	uint32_t imageIndex;
 	vkAcquireNextImageKHR(logicalDevice, swapChain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
-
+	
 	vkResetCommandBuffer(commandBuffer, 0);
-
+	
 	recordCommandBuffer(commandBuffer, imageIndex);
 
 	VkSubmitInfo submitInfo = { 0 };
