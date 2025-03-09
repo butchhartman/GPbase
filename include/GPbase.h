@@ -27,7 +27,6 @@
 
 #endif
 
-
 //#define _CRTDBG_MAP_ALLOC
 //#include <stdlib.h>
 //#include <crtdbg.h>
@@ -41,6 +40,8 @@
 #include "SDL3/SDL_main.h"
 #include "SDL3/SDL_vulkan.h"
 
+// CGLM : Graphics math library compatible with C
+#include "cglm/struct.h"
 
 // 3D graphics API
 #include <vulkan/vulkan.h>

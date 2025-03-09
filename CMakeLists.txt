@@ -12,20 +12,17 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 
 #[[ 
-	Checks if the SDL3 directory contains a CMakeLists.txt file.
-	If the CMakeLists.txt file does not exist, then it will run the git command
-	to pull from the SDL3 repository and retrieve all its files.
+	Runs the git submodule update command to retrieve submodule project
+	files.
 ]]
-if(NOT "vendored/SDL3/CMakeLists.txt")
-	execute_process(COMMAND git submodule update --init --recursive)
-endif()
+execute_process(COMMAND git submodule update --init --recursive)
 
 #[[ 
-	Adds the vendored SDL3 directory as a subdirectory.
-	Essentially, this means that the CMakeLists.txt file
-	in the vendored/SDL3 directory will run.
+	Adds the project directories in vendored as a subdirectory.
+	This means their CMakeLists.txt files will run.
 ]]
 add_subdirectory("vendored/SDL3")
+add_subdirectory("vendored/cglm")
 
 #[[ 
 	Lets CMake know this project will compile to an executable
@@ -52,7 +49,7 @@ find_package(Vulkan REQUIRED)
 	I am not sure where exactly these names come from (especially the vendored names)
 	or what the *:: syntax's purpose is.
 ]]
-target_link_libraries(${PROJECT_NAME} SDL3::SDL3 Vulkan::Vulkan)
+target_link_libraries(${PROJECT_NAME} SDL3::SDL3 Vulkan::Vulkan cglm)
 
 #[[ 
 	Adds the project's include directory and vendored libraries' include directory
@@ -61,3 +58,4 @@ target_link_libraries(${PROJECT_NAME} SDL3::SDL3 Vulkan::Vulkan)
 ]]
 target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC "${CMAKE_SOURCE_DIR}/include")
 target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC "${CMAKE_SOURCE_DIR}/vendored/SDL3/include/SDL3")
+target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC "${CMAKE_SOURCE_DIR}/vendored/cglm/include/cglm")
