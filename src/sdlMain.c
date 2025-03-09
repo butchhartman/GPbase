@@ -1350,9 +1350,14 @@ void SDL_AppQuit(void* appstate, SDL_AppResult result) {
 		vkDestroySemaphore(logicalDevice, renderFinishedSemaphores[i], NULL);
 		vkDestroyFence(logicalDevice, inFlightFences[i], NULL);
 	}
+	free(imageAvailableSemaphores);
+	free(renderFinishedSemaphores);
+	free(inFlightFences);
 
 	free(swapChainFramebuffers);
 	free(swapChainImages);
+
+	free(commandBuffers);
 	vkDestroyCommandPool(logicalDevice, commandPool, NULL);
 	vkDestroyPipeline(logicalDevice, graphicsPipeline, NULL);
 	vkDestroyPipelineLayout(logicalDevice, pipelineLayout, NULL);
