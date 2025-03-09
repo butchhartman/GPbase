@@ -251,6 +251,7 @@ int checkDeviceExtensionSupport(VkPhysicalDevice device) {
 		}
 	}
 	printf("\n%d extensions supported of %d required extensions.\n", (int)supportedExtensions, (int)(sizeof(deviceExtensions) / sizeof(deviceExtensions[0])));
+	free(availableExtensions);
 	return supportedExtensions;
 }
 
@@ -324,7 +325,7 @@ QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
 	}
 
 	for (uint32_t i = 0; i < queueFamilyCount; i++) {
-		if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) { //TODO : Silence this warning.
+		if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
 			indices.graphicsFamily = i; 
 		}
 
@@ -370,6 +371,8 @@ uint32_t isDeviceSuitable(VkPhysicalDevice device) {
 		// This check may not be reliable TODO : TEST
 		swapChainAdequate = (swapChainSupport.presentModes != NULL && swapChainSupport.formats != NULL);
 		//printf("%d", swapChainAdequate);
+		free(swapChainSupport.formats);
+		free(swapChainSupport.presentModes);
 	} 
 	// Device selection process
 	// Idont think graphics family is properly being checked TODO : fix
@@ -578,7 +581,7 @@ void createInstance() {
 	SDL_Log("Vulkan initialized.");
 
 	free(extensions);
-
+	free(SDL3Extensions);
 }
 /*
 *	A logical device represents an instance of the physical device's Vulkan implementation.
@@ -742,6 +745,9 @@ void createSwapChain() {
 
 	swapChainImageFormat = surfaceFormat.format;
 	swapChainExtent = extent;
+
+	free(swapChainSupport.formats);
+	free(swapChainSupport.presentModes);
 }
 
 /*
@@ -1298,11 +1304,13 @@ void SDL_AppQuit(void* appstate, SDL_AppResult result) {
 	for (uint32_t i = 0; i < swapChainImageViewsLength; i++) {
 		vkDestroyImageView(logicalDevice, swapChainImageViews[i], NULL);
 	}
+	free(swapChainImageViews);
 
 	for (uint32_t i = 0; i < swapChainFrameBuffersLength; i++) {
 		vkDestroyFramebuffer(logicalDevice, swapChainFramebuffers[i], NULL);
 	}
-
+	free(swapChainFramebuffers);
+	free(swapChainImages);
 	vkDestroySemaphore(logicalDevice, imageAvailableSemaphore, NULL);
 	vkDestroySemaphore(logicalDevice, renderFinishedSemaphore, NULL);
 	vkDestroyFence(logicalDevice, inFlightFence, NULL);
@@ -1314,4 +1322,6 @@ void SDL_AppQuit(void* appstate, SDL_AppResult result) {
 	vkDestroyDevice(logicalDevice, NULL);
 	vkDestroySurfaceKHR(instance, surface, NULL);
 	vkDestroyInstance(instance, NULL);
+	SDL_Quit();
+	//_CrtDumpMemoryLeaks();
 }

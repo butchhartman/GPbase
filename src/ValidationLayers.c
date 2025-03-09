@@ -118,7 +118,6 @@ uint32_t checkValidationLayerSupport() {
 
 	for (uint32_t i = 0; i < layerCount; i++) {
 		//	SDL_Log("Finding validation layer %d...", i);
-					//validation layers had to be dereferenced for this to work for some reason...
 		for (uint32_t j = 0; j < numValidationLayers; j++) {
 
 			if (strcmp(availableLayers[i].layerName, validationLayers[j]) == 0) {
@@ -138,7 +137,6 @@ uint32_t checkValidationLayerSupport() {
 	if (!layerFound) {
 		return 0;
 	}
-
+	free(availableLayers);
 	return 1;
-
 }
