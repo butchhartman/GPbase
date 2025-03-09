@@ -1157,6 +1157,10 @@ void createSyncObjects() {
 	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
+	if (imageAvailableSemaphores == NULL || renderFinishedSemaphores == NULL || inFlightFences == NULL) {
+		return;
+	}
+
 	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 
 		if (vkCreateSemaphore(logicalDevice, &semaphoreInfo, NULL, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
