@@ -24,17 +24,17 @@ execute_process(COMMAND git submodule update --init --recursive)
 add_subdirectory("vendored/SDL3")
 add_subdirectory("vendored/cglm")
 
+#[[
+	Gets all .c files from the src directory and stores them at ${PROJECT_SOURCE_FILES}
+]]
+file(GLOB_RECURSE PROJECT_SOURCE_FILES ${CMAKE_SOURCE_DIR}/src/*.c)
+
 #[[ 
 	Lets CMake know this project will compile to an executable
 	comprised of the listed source files.
 	TODO : Find a way to not have to include the file directory before the file name.
 ]]
-add_executable(${PROJECT_NAME}  "src/sdlMain.c"  
-								"include/GPbase.h" 
-								"include/ValidationLayers.h" 
-								"src/ValidationLayers.c" 
-								"src/LoadShaders.c"  
-								"include/LoadShaders.h")
+add_executable(${PROJECT_NAME} ${PROJECT_SOURCE_FILES}) 
 
 #[[ 
 	Finds the location of the host machine's Vulkan SDK
