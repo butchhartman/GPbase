@@ -83,6 +83,11 @@ uint32_t currentFrame = 0;
 
 int frameBufferResized = 0;
 
+// Reference to the vertex buffer
+VkBuffer vertexBuffer;
+VkDeviceMemory vertexBufferMemory;
+
+
 /*
 * When moving funcs to separate headers : 
 * Document how to use the function in the header file, or more accurately close to the declaration.
@@ -278,9 +283,7 @@ const char **getRequiredExtensions(uint32_t *count) {
 	* This const char ** should never be freed because it points to an array owned by SDL.
 	* This array should not be freed.
 	*/
-	const char **SDL3Extensions;
-
-	SDL3Extensions = SDL_Vulkan_GetInstanceExtensions(count);
+	const char **SDL3Extensions = SDL_Vulkan_GetInstanceExtensions(count);
 
 	if (enableValidationLayers) {
 		const char **extensions = malloc(sizeof(const char*) * (*count+1));
@@ -435,6 +438,10 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
 	scissor.extent = swapChainExtent;
 	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
+	VkBuffer vertexBuffers[] = {vertexBuffer};
+	VkDeviceSize offsets[] = {0};
+	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+
 	// Here it is... draw command for the triangle.
 	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 
@@ -463,7 +470,7 @@ VkVertexInputBindingDescription getVertexBindingDescription() {
 }
 
 VkVertexInputAttributeDescription *getAttributeDescriptions() {
-	VkVertexInputAttributeDescription attribDescriptions[2];
+	VkVertexInputAttributeDescription *attribDescriptions = malloc(sizeof(Vertex) * 2);
 	attribDescriptions[0].binding = 0;
 	attribDescriptions[0].location = 0;
 	attribDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
@@ -473,6 +480,21 @@ VkVertexInputAttributeDescription *getAttributeDescriptions() {
 	attribDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
 	attribDescriptions[1].offset = offsetof(Vertex, color);
 	return attribDescriptions;
+}
+
+
+uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+	VkPhysicalDeviceMemoryProperties memProperties;
+	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
+
+	for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+		if (typeFilter & (1 << i) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+			return i;
+		}
+	}
+
+	SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to find a memory type");
+
 }
 
 /*
@@ -523,6 +545,8 @@ void pickPhysicalDevice() {
 
 	free(availableDevices);
 }
+
+
 
 /*
 *	A Vulkan instance is the link between one's application and the vulkan library.
@@ -879,6 +903,7 @@ void createGraphicsPipeline() {
 	};
 
 	// TODO: expand in vertex buffer chapter
+	// There are many concerning validation layer warnings here so keep in mind this may not work correctly
 	VkVertexInputBindingDescription bindingDescription = getVertexBindingDescription();
 	VkVertexInputAttributeDescription *attribDescriptions = getAttributeDescriptions();
 
@@ -1010,6 +1035,7 @@ void createGraphicsPipeline() {
 	vkDestroyShaderModule(logicalDevice, fragShaderModule, NULL);
 	free(vertShaderBin);
 	free(fragShaderBin);
+	free(attribDescriptions);
 
 }
 /*
@@ -1236,6 +1262,39 @@ void recreateSwapChain() {
 	createFramebuffers();
 }
 
+void createVertexBuffer() {
+	VkBufferCreateInfo bufferInfo = {0};
+	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	// NOTE : THE SIZE VALUE SHOULD *NOT* BE THE LENGTH OF THE ARRAY, IT IS THE SIZE OF THE ARRAY'S MEMORY BLOCK (the size you would put into malloc params)
+	bufferInfo.size = sizeof(vertices) * sizeof(vertices[0]);
+	bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	if (vkCreateBuffer(logicalDevice, &bufferInfo, NULL, &vertexBuffer) != VK_SUCCESS){
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to create vertex buffer");
+	}
+
+	VkMemoryRequirements memRequirements;
+	vkGetBufferMemoryRequirements(logicalDevice, vertexBuffer, &memRequirements);
+
+	VkMemoryAllocateInfo allocInfo = {0};
+	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocInfo.allocationSize = memRequirements.size;
+	allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+	if (vkAllocateMemory(logicalDevice, &allocInfo, NULL, &vertexBufferMemory) != VK_SUCCESS) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to allocate vertex buffer memory");
+	}
+	vkBindBufferMemory(logicalDevice, vertexBuffer, vertexBufferMemory, 0);
+
+	void *data;
+	vkMapMemory(logicalDevice, vertexBufferMemory, 0, bufferInfo.size, 0, &data);
+	memcpy(data, vertices, (size_t)bufferInfo.size);
+	vkUnmapMemory(logicalDevice, vertexBufferMemory);
+}
+
+
+
 
 /*
 * *********************************************************************************************************************
@@ -1342,6 +1401,8 @@ VkResult Vk_Init() {
 
 	createCommandPool();
 
+	createVertexBuffer();
+
 	createCommandBuffers();
 
 	createSyncObjects();
@@ -1427,6 +1488,9 @@ void SDL_AppQuit(void* appstate, SDL_AppResult result) {
 	// the children yearn for for loops
 
 	cleanupSwapChain();
+
+	vkDestroyBuffer(logicalDevice, vertexBuffer, NULL);
+	vkFreeMemory(logicalDevice, vertexBufferMemory, NULL);
 
 	for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 		vkDestroySemaphore(logicalDevice, imageAvailableSemaphores[i], NULL);
