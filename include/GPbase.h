@@ -65,6 +65,17 @@ typedef struct {
 	VkPresentModeKHR *presentModes;
 } SwapChainSupportDetails;
 
+typedef struct {
+	vec2s pos;
+	vec3s color;
+} Vertex;
+
+const Vertex vertices[] = {
+	{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+	{{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+	{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+};
+
 // Validation layers
 const char* validationLayers[] = {
 	"VK_LAYER_KHRONOS_validation",

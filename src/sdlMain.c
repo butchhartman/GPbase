@@ -447,7 +447,33 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
 	}
 }
 
+/*
+* A vertex binding describes at which rate to load data from memory throughout the vertices.
+* It specifies the number of bytes between data entries and whether to move to the next data entry after each vertex or each instance.
+*
+* This function returns a vertexBindingDescription
+* 
+*/
+VkVertexInputBindingDescription getVertexBindingDescription() {
+	VkVertexInputBindingDescription bindingDescription = {0};
+	bindingDescription.binding = 0;
+	bindingDescription.stride = sizeof(Vertex);
+	bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+	return bindingDescription;
+}
 
+VkVertexInputAttributeDescription *getAttributeDescriptions() {
+	VkVertexInputAttributeDescription attribDescriptions[2];
+	attribDescriptions[0].binding = 0;
+	attribDescriptions[0].location = 0;
+	attribDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+	attribDescriptions[0].offset = offsetof(Vertex, pos);
+	attribDescriptions[1].binding = 0;
+	attribDescriptions[1].location = 1;
+	attribDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+	attribDescriptions[1].offset = offsetof(Vertex, color);
+	return attribDescriptions;
+}
 
 /*
 *	A physcial device in Vulkan is a representation of the host machine's physical graphics card.
@@ -852,14 +878,16 @@ void createGraphicsPipeline() {
 		vertShaderStageInfo, fragShaderStageInfo
 	};
 
-
 	// TODO: expand in vertex buffer chapter
+	VkVertexInputBindingDescription bindingDescription = getVertexBindingDescription();
+	VkVertexInputAttributeDescription *attribDescriptions = getAttributeDescriptions();
+
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo = { 0 };
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertexInputInfo.vertexBindingDescriptionCount = 0;
-	vertexInputInfo.pVertexBindingDescriptions = NULL;
-	vertexInputInfo.vertexAttributeDescriptionCount = 0;
-	vertexInputInfo.pVertexAttributeDescriptions = NULL;
+	vertexInputInfo.vertexBindingDescriptionCount = 1;
+	vertexInputInfo.pVertexBindingDescriptions = &bindingDescription; 
+	vertexInputInfo.vertexAttributeDescriptionCount = 2; // This is supposed to be equal to the attribDescription array size. I just put two here since it is always two for now.
+	vertexInputInfo.pVertexAttributeDescriptions = attribDescriptions;
 
 	// Defines what type of geometry will be drawn from the vertices
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly = { 0 };
@@ -1283,7 +1311,6 @@ void drawFrame() {
 
 	currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
-
 
 
 
