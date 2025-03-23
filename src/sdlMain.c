@@ -87,6 +87,8 @@ int frameBufferResized = 0;
 VkBuffer vertexBuffer;
 VkDeviceMemory vertexBufferMemory;
 
+VkBuffer indexBuffer;
+VkDeviceMemory indexBufferMemory;
 
 /*
 * When moving funcs to separate headers : 
@@ -441,9 +443,10 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
 	VkBuffer vertexBuffers[] = {vertexBuffer};
 	VkDeviceSize offsets[] = {0};
 	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+	vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
-	// Here it is... draw command for the triangle.
-	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+	// the size should be equal to the amount of indices (length) of array
+	vkCmdDrawIndexed(commandBuffer, sizeof(indices) / sizeof(indices[0]), 1, 0, 0 ,0);	
 
 	vkCmdEndRenderPass(commandBuffer);
 
@@ -1353,7 +1356,25 @@ void createVertexBuffer() {
 	vkFreeMemory(logicalDevice, stagingBufferMemory, NULL);
 }
 
+void createIndexBuffer() {
+	VkDeviceSize bufferSize = sizeof(indices[0]) * sizeof(indices);
 
+	VkBuffer stagingBuffer;
+	VkDeviceMemory stagingBufferMemory;
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingBuffer, &stagingBufferMemory);
+
+	void *data;
+	vkMapMemory(logicalDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
+		memcpy(data, indices, (size_t)bufferSize);
+	vkUnmapMemory(logicalDevice, stagingBufferMemory);
+
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &indexBuffer, &indexBufferMemory);
+
+	copyBuffer(stagingBuffer, indexBuffer, bufferSize);
+
+	vkDestroyBuffer(logicalDevice, stagingBuffer, NULL);
+	vkFreeMemory(logicalDevice, stagingBufferMemory, NULL);
+}
 
 
 
@@ -1464,6 +1485,8 @@ VkResult Vk_Init() {
 
 	createVertexBuffer();
 
+	createIndexBuffer();
+
 	createCommandBuffers();
 
 	createSyncObjects();
@@ -1550,9 +1573,12 @@ void SDL_AppQuit(void* appstate, SDL_AppResult result) {
 
 	cleanupSwapChain();
 
+	vkDestroyBuffer(logicalDevice, indexBuffer, NULL);
+	vkFreeMemory(logicalDevice, indexBufferMemory, NULL);
+
 	vkDestroyBuffer(logicalDevice, vertexBuffer, NULL);
 	vkFreeMemory(logicalDevice, vertexBufferMemory, NULL);
-
+	
 	for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 		vkDestroySemaphore(logicalDevice, imageAvailableSemaphores[i], NULL);
 		vkDestroySemaphore(logicalDevice, renderFinishedSemaphores[i], NULL);
