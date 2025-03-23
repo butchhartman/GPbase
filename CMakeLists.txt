@@ -24,6 +24,8 @@ execute_process(COMMAND git submodule update --init --recursive)
 add_subdirectory("vendored/SDL3")
 add_subdirectory("vendored/cglm")
 
+add_compile_options(/fsanitize=address /g3)
+
 #[[
 	Gets all .c files from the src directory and stores them at ${PROJECT_SOURCE_FILES}
 ]]

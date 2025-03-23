@@ -1336,7 +1336,8 @@ void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyF
 }
 
 void createVertexBuffer() {
-	VkDeviceSize  bufferSize = sizeof(vertices[0]) * sizeof(vertices);
+	// This is just size of the source in bytes, so a simple sizeof is permittable
+	VkDeviceSize  bufferSize = sizeof(vertices);
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
@@ -1357,7 +1358,8 @@ void createVertexBuffer() {
 }
 
 void createIndexBuffer() {
-	VkDeviceSize bufferSize = sizeof(indices[0]) * sizeof(indices);
+	// This is just size of the source in bytes, so a simple sizeof is permittable
+	VkDeviceSize bufferSize = sizeof(indices); 
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
