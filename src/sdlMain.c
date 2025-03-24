@@ -98,6 +98,9 @@ void **uniformBuffersMapped;
 VkDescriptorPool descriptorPool;
 VkDescriptorSet *descriptorSets;
 
+VkPipelineStageFlags sourceStage;
+VkPipelineStageFlags destinationStage;
+
 // Depth buffer components
 VkImage depthImage;
 VkDeviceMemory depthImageMemory;
@@ -427,9 +430,14 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
 	//renderPassInfo.renderArea.offset = { 0,0 }; should be zero by default
 	renderPassInfo.renderArea.extent = swapChainExtent;
 
-	VkClearValue clearColor = { {{0.0f, 0.0f, 0.0f, 1.0f}} };
-	renderPassInfo.clearValueCount = 1;
-	renderPassInfo.pClearValues = &clearColor;
+	VkClearValue clearValues[2];
+	VkClearColorValue clearcol = {0.0f, 0.0f, 0.0f, 1.0f};
+	VkClearDepthStencilValue clrDepthStcl = {1.0f, 0.0f};
+	clearValues[0].color = clearcol; 
+	clearValues[1].depthStencil = clrDepthStcl;
+
+	renderPassInfo.clearValueCount = 2; // This should be the length of the clear values array
+	renderPassInfo.pClearValues = clearValues;
 
 	// No error handling because all recording commands (vkCmd) return void
 	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -982,7 +990,17 @@ void createGraphicsPipeline() {
 	multisampling.alphaToOneEnable = VK_FALSE;
 
 	// Depth and/or stencil buffer
-	//////////////////////////////
+	VkPipelineDepthStencilStateCreateInfo depthStencil = {0};
+	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	depthStencil.depthTestEnable = VK_TRUE;
+	depthStencil.depthWriteEnable = VK_TRUE;
+	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+	depthStencil.depthBoundsTestEnable = VK_FALSE;
+	depthStencil.minDepthBounds = 0.0f;
+	depthStencil.maxDepthBounds = 1.0f;
+	depthStencil.stencilTestEnable = VK_FALSE;
+	// depthStencil.front = {0}; // optional
+	// depthStencil.back = {}; // optional
 
 	// stuff for blending colors. Currently disabled.
 	VkPipelineColorBlendAttachmentState colorBlendAttachment = { 0 };
@@ -1031,7 +1049,7 @@ void createGraphicsPipeline() {
 	pipelineInfo.pViewportState = &viewportState;
 	pipelineInfo.pRasterizationState = &rasterizer;
 	pipelineInfo.pMultisampleState = &multisampling;
-	pipelineInfo.pDepthStencilState = NULL;
+	pipelineInfo.pDepthStencilState = &depthStencil;
 	pipelineInfo.pColorBlendState = &colorBlending;
 	pipelineInfo.pDynamicState = &dynamicState;
 
@@ -1083,15 +1101,32 @@ void createRenderPass() {
 	colorAttachmentRef.attachment = 0;
 	colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+	VkAttachmentDescription depthAttachment = {0};
+	depthAttachment.format = findDepthFormat();
+	depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+	depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+	VkAttachmentReference depthAttachmentRef = {0};
+	depthAttachmentRef.attachment = 1;
+	depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
 	VkSubpassDescription subpass = { 0 };
 	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 	subpass.colorAttachmentCount = 1;
 	subpass.pColorAttachments = &colorAttachmentRef;
+	subpass.pDepthStencilAttachment = &depthAttachmentRef;
+
+	VkAttachmentDescription attachments[] = {colorAttachment, depthAttachment};
 
 	VkRenderPassCreateInfo renderPassInfo = { 0 };
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	renderPassInfo.attachmentCount = 1;
-	renderPassInfo.pAttachments = &colorAttachment;
+	renderPassInfo.attachmentCount = 2; // This should be the length of the attachment array
+	renderPassInfo.pAttachments = attachments;
 	renderPassInfo.subpassCount = 1;
 	renderPassInfo.pSubpasses = &subpass;
 
@@ -1099,12 +1134,13 @@ void createRenderPass() {
 	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
 	dependency.dstSubpass = 0;
 
-	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
 	dependency.srcAccessMask = 0;
 
-	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
+	renderPassInfo.dependencyCount = 1;
 	renderPassInfo.pDependencies = &dependency;
 
 	if (vkCreateRenderPass(logicalDevice, &renderPassInfo, NULL, &renderPass) != VK_SUCCESS) {
@@ -1139,14 +1175,13 @@ void createFramebuffers() {
 	}
 
 	for (uint32_t i = 0; i < swapChainImagesLength; i++) {
-		VkImageView attachments[] = {
-			swapChainImageViews[i]
-		};
+
+		VkImageView attachments[] = {swapChainImageViews[i], depthImageView};
 
 		VkFramebufferCreateInfo framebufferInfo = { 0 };
 		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 		framebufferInfo.renderPass = renderPass;
-		framebufferInfo.attachmentCount = 1;
+		framebufferInfo.attachmentCount = 2; // This should be the length of attachments
 		framebufferInfo.pAttachments = attachments;
 		framebufferInfo.width = swapChainExtent.width;
 		framebufferInfo.height = swapChainExtent.height;
@@ -1258,27 +1293,11 @@ void cleanupSwapChain() {
 	free(swapChainFramebuffers);
 
 	vkDestroySwapchainKHR(logicalDevice, swapChain, NULL);
-
+	vkDestroyImageView(logicalDevice, depthImageView, NULL);
+	vkDestroyImage(logicalDevice, depthImage, NULL);
+	vkFreeMemory(logicalDevice, depthImageMemory, NULL);
 }
 
-
-void recreateSwapChain() {
-	// Do not recreate swapchain until window not minimized.
-	// The minimum size of the window is 1 so there should never be a time the window size is 0 besides minimization
-	SDL_WindowFlags minimizedFlagMask = SDL_GetWindowFlags(window);
-	if (SDL_WINDOW_MINIMIZED & minimizedFlagMask) {
-		return;
-	}
-	// TODO :  Note that we don't recreate the renderpass here for simplicity. In theory it can be possible for the swap chain image format to change during an applications' lifetime, e.g. when moving a window from an standard range to an high dynamic range monitor. This may require the application to recreate the renderpass to make sure the change between dynamic ranges is properly reflected.
-
-	vkDeviceWaitIdle(logicalDevice);
-
-	cleanupSwapChain();
-
-	createSwapChain();
-	createImageViews();
-	createFramebuffers();
-}
 
 void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
 	VkCommandBufferAllocateInfo allocInfo = {0};
@@ -1595,6 +1614,10 @@ void endSingleTimeCommands(VkCommandBuffer commandBuffer) {
 	vkFreeCommandBuffers(logicalDevice, commandPool, 1, &commandBuffer);
 }
 
+uint32_t hasStencilComponent(VkFormat format) {
+	return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
+}
+
 // Another texture mapping function needed for depth buffering
 void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
 	VkCommandBuffer commandBuffer = beginSingleTimeCommands();
@@ -1606,15 +1629,49 @@ void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayo
 	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	barrier.image = image;
-	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+
+	if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+		if (hasStencilComponent(format)) {
+			barrier.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+		}
+	}
+	else {
+		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	}	
 	barrier.subresourceRange.baseMipLevel = 0; 
 	barrier.subresourceRange.levelCount = 1;
 	barrier.subresourceRange.baseArrayLayer = 0;
 	barrier.subresourceRange.layerCount = 1; 
 
+	if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+		barrier.srcAccessMask = 0;
+		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+	}
+	else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+		sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+	}
+	else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+		barrier.srcAccessMask = 0;
+		barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+	}
+	else {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Unsupported layout transition");
+	}
+
 	vkCmdPipelineBarrier(
 		commandBuffer,
-		0, 0,
+		sourceStage, destinationStage,
 		0,
 		0, NULL,
 		0, NULL,
@@ -1645,15 +1702,33 @@ VkFormat findDepthFormat() {
 	return findSupportedFormat(candidates, 3, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 }
 
-uint32_t hasStencilComponent(VkFormat format) {
-	return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
-}
 
 void createDepthResources() {
 	VkFormat depthFormat = findDepthFormat();
 	createImage(swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &depthImage, &depthImageMemory);
 	depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
 	transitionImageLayout(depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+
+
+}
+
+void recreateSwapChain() {
+	// Do not recreate swapchain until window not minimized.
+	// The minimum size of the window is 1 so there should never be a time the window size is 0 besides minimization
+	SDL_WindowFlags minimizedFlagMask = SDL_GetWindowFlags(window);
+	if (SDL_WINDOW_MINIMIZED & minimizedFlagMask) {
+		return;
+	}
+	// TODO :  Note that we don't recreate the renderpass here for simplicity. In theory it can be possible for the swap chain image format to change during an applications' lifetime, e.g. when moving a window from an standard range to an high dynamic range monitor. This may require the application to recreate the renderpass to make sure the change between dynamic ranges is properly reflected.
+
+	vkDeviceWaitIdle(logicalDevice);
+
+	cleanupSwapChain();
+
+	createSwapChain();
+	createImageViews();
+	createDepthResources();
+	createFramebuffers();
 }
 
 /*
@@ -1761,11 +1836,11 @@ VkResult Vk_Init() {
 
 	createGraphicsPipeline();
 
-	createFramebuffers();
-
 	createCommandPool();
 
 	createDepthResources();
+
+	createFramebuffers();
 
 	createVertexBuffer();
 
