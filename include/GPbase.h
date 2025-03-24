@@ -41,6 +41,7 @@
 #include "SDL3/SDL_vulkan.h"
 
 // CGLM : Graphics math library compatible with C
+#define CGLM_FORCE_DEPTH_ZERO_TO_ONE
 #include "cglm/struct.h"
 
 // 3D graphics API
@@ -67,7 +68,7 @@ typedef struct {
 } SwapChainSupportDetails;
 
 typedef struct {
-	vec2s pos;
+	vec3s pos;
 	vec3s color;
 } Vertex;
 
@@ -78,14 +79,20 @@ typedef struct {
 } UniformBufferObject;
 
 const Vertex vertices[] = {
-	{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-	{{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-	{{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
-	{{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
+	{{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}},
+	{{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}},
+	{{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}},
+	{{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}},
+
+	{{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+	{{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+	{{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}},
+	{{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}}
 };
 
 const uint16_t indices[] = {
-	0, 1, 2, 2, 3, 0
+	0, 1, 2, 2, 3, 0,
+	4, 5, 6, 6, 7, 4
 };
 
 // Validation layers
