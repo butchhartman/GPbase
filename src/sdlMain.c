@@ -4,8 +4,8 @@
 // Much of the Vulkan code was provided by or adapted from :
 // https://vulkan-tutorial.com/
 
-#define DEBUG_MODE
-#define DEBUG_VERBOSITY_WARNING
+ #define DEBUG_MODE
+ #define DEBUG_VERBOSITY_WARNING
 
 /*
 * Through testing I have determined that the validation layers are causing memory leaks. 
@@ -59,6 +59,7 @@ uint32_t swapChainImageViewsLength;
 // Reference to render pass
 VkRenderPass renderPass;
 
+VkDescriptorSetLayout descriptorSetLayout;
 // Reference to graphics pipeline layout
 VkPipelineLayout pipelineLayout;
 
@@ -90,6 +91,12 @@ VkDeviceMemory vertexBufferMemory;
 VkBuffer indexBuffer;
 VkDeviceMemory indexBufferMemory;
 
+VkBuffer *uniformBuffers;
+VkDeviceMemory *uniformBuffersMemory;
+void **uniformBuffersMapped;
+
+VkDescriptorPool descriptorPool;
+VkDescriptorSet *descriptorSets;
 /*
 * When moving funcs to separate headers : 
 * Document how to use the function in the header file, or more accurately close to the declaration.
@@ -445,8 +452,10 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
 	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 	vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentFrame], 0, NULL);
+
 	// the size should be equal to the amount of indices (length) of array
-	vkCmdDrawIndexed(commandBuffer, sizeof(indices) / sizeof(indices[0]), 1, 0, 0 ,0);	
+	vkCmdDrawIndexed(commandBuffer,  sizeof(indices) / sizeof(indices[0]), 1, 0, 0 ,0);	
 
 	vkCmdEndRenderPass(commandBuffer);
 
@@ -950,7 +959,7 @@ void createGraphicsPipeline() {
 	rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
 	rasterizer.lineWidth = 1.0f;
 	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-	rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	rasterizer.depthBiasEnable = VK_FALSE;
 	rasterizer.depthBiasConstantFactor = 0.0f;
 	rasterizer.depthBiasClamp = 0.0f;
@@ -995,8 +1004,8 @@ void createGraphicsPipeline() {
 	// Create graphics pipeline layout
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = { 0 };
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfo.setLayoutCount = 0;
-	pipelineLayoutInfo.pSetLayouts = NULL;
+	pipelineLayoutInfo.setLayoutCount = 1;
+	pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
 	pipelineLayoutInfo.pushConstantRangeCount = 0;
 	pipelineLayoutInfo.pPushConstantRanges = NULL;
 
@@ -1378,7 +1387,117 @@ void createIndexBuffer() {
 	vkFreeMemory(logicalDevice, stagingBufferMemory, NULL);
 }
 
+void createDescriptorSetLayout() {
+	VkDescriptorSetLayoutBinding uboLayoutBinding = {0};
+	uboLayoutBinding.binding = 0;
+	uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	uboLayoutBinding.descriptorCount = 1;
+	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	uboLayoutBinding.pImmutableSamplers = NULL;
 
+	VkDescriptorSetLayoutCreateInfo layoutInfo = {0};
+	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	layoutInfo.bindingCount = 1;
+	layoutInfo.pBindings = &uboLayoutBinding;
+
+	if (vkCreateDescriptorSetLayout(logicalDevice, &layoutInfo, NULL, &descriptorSetLayout) != VK_SUCCESS) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to create descriptor set layout");
+	}
+}
+
+void createUniformBuffers() {
+
+	VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+
+	uniformBuffers = malloc(sizeof(VkBuffer) * MAX_FRAMES_IN_FLIGHT);
+	uniformBuffersMemory = malloc(sizeof(VkDeviceMemory) * MAX_FRAMES_IN_FLIGHT);
+
+	uniformBuffersMapped = malloc(sizeof(void*) * MAX_FRAMES_IN_FLIGHT); // Must allocate for the # of void * this array will contain
+	uniformBuffersMapped[0] = malloc(sizeof(UniformBufferObject)); // Must allocate the size the void* in index 0 will store
+	uniformBuffersMapped[1] = malloc(sizeof(UniformBufferObject));// Must allocate the size the void* in index 1 will store
+
+	// TODO : Automate this via a loop
+
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+																																				// the tutorial did not pass these as pointers, but that might be because vector does that automatically?
+		createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &uniformBuffers[i], &uniformBuffersMemory[i]);
+		vkMapMemory(logicalDevice, uniformBuffersMemory[i], 0, bufferSize, 0, &uniformBuffersMapped[i]); // Initially, accidently wrote uniformBuffersMemore[i] twice instead of uniformBuffersMapped[i]...
+
+	}
+}
+
+void updateUniformBuffer(uint32_t currentImage) {
+	double time = SDL_GetTicks()/1000.0f;
+
+	UniformBufferObject ubo = {0};
+	vec3s z = GLMS_VEC3_ZERO_INIT;
+	z.z = 1;
+	ubo.model = glms_rotate(GLMS_MAT4_IDENTITY, time * M_PI_2, z);
+	vec3s twos;
+	twos.x = 2;
+	twos.y = 2;
+	twos.z = 2;
+
+	ubo.view = glms_lookat(twos, GLMS_VEC3_ZERO, z);
+	ubo.proj = glms_perspective(glm_rad(45), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
+	ubo.proj.m11 *= -1; // inverts the y axis because vulkan has y clip coordinates inverted compared to opengl
+
+	memcpy(uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
+}
+
+void createDescriptorPool() {
+	VkDescriptorPoolSize poolSize = {0};
+	poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	poolSize.descriptorCount = (uint32_t)MAX_FRAMES_IN_FLIGHT;
+
+	VkDescriptorPoolCreateInfo poolInfo = {0};
+	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	poolInfo.poolSizeCount = 1;
+	poolInfo.pPoolSizes = &poolSize;
+	poolInfo.maxSets = (uint32_t)MAX_FRAMES_IN_FLIGHT;
+
+	if (vkCreateDescriptorPool(logicalDevice, &poolInfo, NULL, &descriptorPool) != VK_SUCCESS) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to create descriptor pool");
+	}
+}
+
+void createDescriptorSets() {
+	VkDescriptorSetLayout *layouts = malloc(MAX_FRAMES_IN_FLIGHT * sizeof(VkDescriptorSetLayout));
+	for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		layouts[i] = descriptorSetLayout;
+	}
+
+	VkDescriptorSetAllocateInfo allocInfo = {0};
+	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocInfo.descriptorPool = descriptorPool;
+	allocInfo.descriptorSetCount = (uint32_t)MAX_FRAMES_IN_FLIGHT;
+	allocInfo.pSetLayouts = layouts;
+
+	descriptorSets = malloc(sizeof(VkDescriptorSet) * MAX_FRAMES_IN_FLIGHT);
+	if (vkAllocateDescriptorSets(logicalDevice, &allocInfo, descriptorSets) != VK_SUCCESS) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to allocate descriptor sets");
+	}
+
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		VkDescriptorBufferInfo bufferInfo = {0};
+		bufferInfo.buffer = uniformBuffers[i];
+		bufferInfo.offset = 0;
+		bufferInfo.range = sizeof(UniformBufferObject);
+
+		VkWriteDescriptorSet descriptorWrite = {0};
+		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrite.dstSet = descriptorSets[i];
+		descriptorWrite.dstBinding = 0;
+		descriptorWrite.dstArrayElement = 0;
+		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		descriptorWrite.descriptorCount = 1;
+		descriptorWrite.pBufferInfo = &bufferInfo;
+		descriptorWrite.pImageInfo = NULL;
+		descriptorWrite.pTexelBufferView = NULL;
+
+		vkUpdateDescriptorSets(logicalDevice, 1, &descriptorWrite, 0, NULL);
+	}
+}
 
 /*
 * *********************************************************************************************************************
@@ -1409,6 +1528,8 @@ void drawFrame() {
 	vkResetCommandBuffer(commandBuffers[currentFrame], 0);
 	
 	recordCommandBuffer(commandBuffers[currentFrame], imageIndex);
+
+	updateUniformBuffer(currentFrame);
 
 	VkSubmitInfo submitInfo = { 0 };
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1479,6 +1600,8 @@ VkResult Vk_Init() {
 
 	createRenderPass();
 
+	createDescriptorSetLayout();
+
 	createGraphicsPipeline();
 
 	createFramebuffers();
@@ -1488,6 +1611,12 @@ VkResult Vk_Init() {
 	createVertexBuffer();
 
 	createIndexBuffer();
+
+	createUniformBuffers();
+
+	createDescriptorPool();
+
+	createDescriptorSets();
 
 	createCommandBuffers();
 
@@ -1575,6 +1704,10 @@ void SDL_AppQuit(void* appstate, SDL_AppResult result) {
 
 	cleanupSwapChain();
 
+	vkDestroyDescriptorPool(logicalDevice, descriptorPool, NULL);
+
+	vkDestroyDescriptorSetLayout(logicalDevice, descriptorSetLayout, NULL);
+
 	vkDestroyBuffer(logicalDevice, indexBuffer, NULL);
 	vkFreeMemory(logicalDevice, indexBufferMemory, NULL);
 
@@ -1585,7 +1718,11 @@ void SDL_AppQuit(void* appstate, SDL_AppResult result) {
 		vkDestroySemaphore(logicalDevice, imageAvailableSemaphores[i], NULL);
 		vkDestroySemaphore(logicalDevice, renderFinishedSemaphores[i], NULL);
 		vkDestroyFence(logicalDevice, inFlightFences[i], NULL);
+		
+		vkDestroyBuffer(logicalDevice, uniformBuffers[i], NULL);
+		vkFreeMemory(logicalDevice, uniformBuffersMemory[i], NULL);
 	}
+
 	free(imageAvailableSemaphores);
 	free(renderFinishedSemaphores);
 	free(inFlightFences);
