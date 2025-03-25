@@ -1,19 +1,14 @@
+
+#ifndef GP_VALIDATIONLAYERS_INCLUDED_
+#define GP_VALIDATIONLAYERS_INCLUDED_
+
 #pragma once
 
 #include <stdio.h>
 #include "SDL3/SDL.h"
 #include "SDL3/SDL_vulkan.h"
 #include <vulkan/vulkan.h>
-
-/*
-Externally accessed from GPbase.h
-*/
-extern const int enableValidationLayers;
-/*
-Externally accessed from GPbase.h
-*/
-extern const char *validationLayers[];
-extern const int numValidationLayers;
+#include "Globals.h"
 
 /*
 Gets the vkDestroyDebugUtilsMessengerEXT function
@@ -61,3 +56,5 @@ void setupDebugMessenger(VkInstance vinstance, VkDebugUtilsMessengerEXT* pDebugM
 	Ignore all outputs from this function.
 */
 uint32_t checkValidationLayerSupport();
+
+#endif

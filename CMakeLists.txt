@@ -36,7 +36,7 @@ file(GLOB_RECURSE PROJECT_SOURCE_FILES ${CMAKE_SOURCE_DIR}/src/*.c)
 	comprised of the listed source files.
 	TODO : Find a way to not have to include the file directory before the file name.
 ]]
-add_executable(${PROJECT_NAME} ${PROJECT_SOURCE_FILES}) 
+add_executable(${PROJECT_NAME} ${PROJECT_SOURCE_FILES} )
 
 #[[ 
 	Finds the location of the host machine's Vulkan SDK
