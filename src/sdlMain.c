@@ -1551,7 +1551,7 @@ void recreateSwapChain() {
 	createSwapChain();
 	createImageViews();
 	createDepthResources();
-	createFramebuffers(&swapChainFramebuffers, &swapChainFrameBuffersLength,
+	buffers_createFramebuffers(&swapChainFramebuffers, &swapChainFrameBuffersLength,
 						swapChainImageViews, swapChainImageViewsLength,
 						swapChainImagesLength, renderPass,
 						swapChainExtent, logicalDevice,
@@ -1667,23 +1667,23 @@ VkResult Vk_Init() {
 
 	createDepthResources();
 
-	createFramebuffers(&swapChainFramebuffers, &swapChainFrameBuffersLength,
+	buffers_createFramebuffers(&swapChainFramebuffers, &swapChainFrameBuffersLength,
 						swapChainImageViews, swapChainImageViewsLength,
 						swapChainImagesLength, renderPass,
 						swapChainExtent, logicalDevice,
 						depthImageView);
 
-	createVertexBuffer(vertices, logicalDevice, &vertexBuffer, &vertexBufferMemory, commandPool, graphicsQueue);
+	buffers_createVertexBuffer(vertices, logicalDevice, &vertexBuffer, &vertexBufferMemory, commandPool, graphicsQueue);
 
-	createIndexBuffer(indices, logicalDevice, &indexBuffer, &indexBufferMemory, commandPool, graphicsQueue);
+	buffers_createIndexBuffer(indices, logicalDevice, &indexBuffer, &indexBufferMemory, commandPool, graphicsQueue);
 
-	createUniformBuffers(&uniformBuffers, &uniformBuffersMemory, &uniformBuffersMapped, logicalDevice);
+	buffers_createUniformBuffers(&uniformBuffers, &uniformBuffersMemory, &uniformBuffersMapped, logicalDevice);
 
 	createDescriptorPool();
 
 	createDescriptorSets();
 
-	createCommandBuffers(&commandBuffers, commandPool, logicalDevice);
+	buffers_createCommandBuffers(&commandBuffers, commandPool, logicalDevice);
 
 	createSyncObjects();
 

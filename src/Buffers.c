@@ -1,7 +1,7 @@
 #include "Buffers.h"
 
 
-void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size, VkCommandPool commandPool, VkDevice logicalDevice, VkQueue graphicsQueue) {
+void buffers_copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size, VkCommandPool commandPool, VkDevice logicalDevice, VkQueue graphicsQueue) {
 	VkCommandBufferAllocateInfo allocInfo = {0};
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -36,7 +36,7 @@ void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size, VkCom
 	vkFreeCommandBuffers(logicalDevice, commandPool, 1, &commandBuffer);
 }
 
-void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer *buffer, VkDeviceMemory *buffermemory, VkDevice logicalDevice){
+void buffers_createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer *buffer, VkDeviceMemory *buffermemory, VkDevice logicalDevice){
 	VkBufferCreateInfo bufferInfo = {0};
 	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	// NOTE : THE SIZE VALUE SHOULD *NOT* BE THE LENGTH OF THE ARRAY, IT IS THE SIZE OF THE ARRAY'S MEMORY BLOCK (the size you would put into malloc params)
@@ -71,7 +71,7 @@ void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyF
 	vkBindBufferMemory(logicalDevice, *buffer, *buffermemory, 0);
 }
 
-void createFramebuffers(VkFramebuffer **swapChainFrameBuffers, uint32_t *swapChainFrameBuffersLength, 
+void buffers_createFramebuffers(VkFramebuffer **swapChainFrameBuffers, uint32_t *swapChainFrameBuffersLength, 
                         VkImageView *swapChainImageViews, uint32_t swapChainImageViewsLength, 
                         uint32_t swapChainImagesLength, VkRenderPass renderPass,
                         VkExtent2D swapChainExtent, VkDevice logicalDevice,
@@ -106,7 +106,7 @@ void createFramebuffers(VkFramebuffer **swapChainFrameBuffers, uint32_t *swapCha
 	}
 }
 
-void createCommandBuffers(VkCommandBuffer **commandBuffers, VkCommandPool commandPool,
+void buffers_createCommandBuffers(VkCommandBuffer **commandBuffers, VkCommandPool commandPool,
                           VkDevice logicalDevice) {
 	*commandBuffers = malloc(sizeof(VkCommandBuffer) * MAX_FRAMES_IN_FLIGHT);// TODO : FREE
 
@@ -122,7 +122,7 @@ void createCommandBuffers(VkCommandBuffer **commandBuffers, VkCommandPool comman
 	}
 }
 
-void createVertexBuffer(Vertex *inputVertices, VkDevice logicalDevice,
+void buffers_createVertexBuffer(Vertex *inputVertices, VkDevice logicalDevice,
                         VkBuffer *vertexBuffer, VkDeviceMemory *vertexBufferMemory,
                         VkCommandPool commandPool, VkQueue graphicsQueue) {
 	// This is just size of the source in bytes, so a simple sizeof is permittable
@@ -130,7 +130,7 @@ void createVertexBuffer(Vertex *inputVertices, VkDevice logicalDevice,
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
-	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+	buffers_createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
                  &stagingBuffer, &stagingBufferMemory, logicalDevice);
 
@@ -140,15 +140,15 @@ void createVertexBuffer(Vertex *inputVertices, VkDevice logicalDevice,
 		memcpy(data, inputVertices, (size_t)bufferSize);
 	vkUnmapMemory(logicalDevice, stagingBufferMemory);
 
-	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory, logicalDevice);
+	buffers_createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory, logicalDevice);
 
-	copyBuffer(stagingBuffer, *vertexBuffer, bufferSize, commandPool, logicalDevice, graphicsQueue);
+	buffers_copyBuffer(stagingBuffer, *vertexBuffer, bufferSize, commandPool, logicalDevice, graphicsQueue);
 
 	vkDestroyBuffer(logicalDevice, stagingBuffer, NULL);
 	vkFreeMemory(logicalDevice, stagingBufferMemory, NULL);
 }
 
-void createIndexBuffer(uint16_t *inputIndices, VkDevice logicalDevice,
+void buffers_createIndexBuffer(uint16_t *inputIndices, VkDevice logicalDevice,
                         VkBuffer *indexBuffer, VkDeviceMemory *indexBufferMemory,
                         VkCommandPool commandPool, VkQueue graphicsQueue) {
 	// This is just size of the source in bytes, so a simple sizeof is permittable
@@ -156,22 +156,22 @@ void createIndexBuffer(uint16_t *inputIndices, VkDevice logicalDevice,
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
-	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingBuffer, &stagingBufferMemory, logicalDevice);
+	buffers_createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingBuffer, &stagingBufferMemory, logicalDevice);
 
 	void *data;
 	vkMapMemory(logicalDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
 		memcpy(data, inputIndices, (size_t)bufferSize);
 	vkUnmapMemory(logicalDevice, stagingBufferMemory);
 
-	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory, logicalDevice);
+	buffers_createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory, logicalDevice);
 
-	copyBuffer(stagingBuffer, *indexBuffer, bufferSize, commandPool, logicalDevice, graphicsQueue);
+	buffers_copyBuffer(stagingBuffer, *indexBuffer, bufferSize, commandPool, logicalDevice, graphicsQueue);
 
 	vkDestroyBuffer(logicalDevice, stagingBuffer, NULL);
 	vkFreeMemory(logicalDevice, stagingBufferMemory, NULL);
 }
 
-void createUniformBuffers(VkBuffer **uniformBuffers, VkDeviceMemory **uniformBuffersMemory,
+void buffers_createUniformBuffers(VkBuffer **uniformBuffers, VkDeviceMemory **uniformBuffersMemory,
                           void ***uniformBuffersMapped, VkDevice logicalDevice) {
 
 	VkDeviceSize bufferSize = sizeof(UniformBufferObject);
@@ -187,7 +187,7 @@ void createUniformBuffers(VkBuffer **uniformBuffers, VkDeviceMemory **uniformBuf
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {                                                                                 // actual black magic addressing below
 																																				// the tutorial did not pass these as pointers, but that might be because vector does that automatically?
-		createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &((*uniformBuffers)[i]), &((*uniformBuffersMemory)[i]), logicalDevice);
+		buffers_createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &((*uniformBuffers)[i]), &((*uniformBuffersMemory)[i]), logicalDevice);
 		vkMapMemory(logicalDevice, (*uniformBuffersMemory)[i], 0, bufferSize, 0, &((*uniformBuffersMapped)[i])); // Initially, accidently wrote uniformBuffersMemore[i] twice instead of uniformBuffersMapped[i]...
 
 	}
