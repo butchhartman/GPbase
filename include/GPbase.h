@@ -1,6 +1,8 @@
 ﻿// GPbase.h : Include file for standard system include files,
 // or project specific include files.
 
+#ifndef GP_BASE_INCLUDED_
+#define GP_BASE_INCLUDED_
 #pragma once
 #define SDL_MAIN_USE_CALLBACKS 1 // uses callbacks instead of the main as an entry point
 
@@ -37,3 +39,7 @@
 #include "LoadShaders.h"
 
 #include "time.h"
+
+#include "Buffers.h"
+
+#endif // GP_BASE_INCLUDED_
