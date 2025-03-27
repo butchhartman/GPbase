@@ -5,12 +5,12 @@
 #include "Globals.h"
 #include "ValidationLayers.h"
 /******************************************************************************//** 
- *
+ * March 26, 2025
  * A Vulkan instance is the connection between the application and the Vulkan library
  * 
  * (https://vulkan-tutorial.com/Drawing_a_triangle/Setup/Instance)
  * 
- * TODO: These functions where some of the first I wrote and it shows; code cleanup needed
+ * TODO: These functions were some of the first I wrote and it shows; code cleanup needed
  *
 ***********************************************************************************/
 

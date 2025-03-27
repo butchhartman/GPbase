@@ -7,6 +7,8 @@
 
 /******************************************************************************//**
 *
+* March 26, 2025
+*
 * A resource descriptor is a way for shaders to freely access resources like buffers and images
 * 
 * Descriptor Set Layout - Specifies the types of resources that are going to be accessed by the pipeline
