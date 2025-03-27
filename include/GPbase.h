@@ -48,4 +48,6 @@
 
 #include "Instance.h"
 
+#include "Swapchain.h"
+
 #endif // GP_BASE_INCLUDED_
