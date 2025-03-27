@@ -44,4 +44,8 @@
 
 #include "Descriptors.h"
 
+#include "Device.h"
+
+#include "Instance.h"
+
 #endif // GP_BASE_INCLUDED_
