@@ -42,4 +42,6 @@
 
 #include "Buffers.h"
 
+#include "Descriptors.h"
+
 #endif // GP_BASE_INCLUDED_
