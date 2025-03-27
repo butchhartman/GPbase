@@ -134,9 +134,9 @@ uint32_t checkValidationLayerSupport() {
 		//	SDL_Log("Failed to find validation layer");
 		//}
 	}
+	free(availableLayers);
 	if (!layerFound) {
 		return 0;
 	}
-	free(availableLayers);
 	return 1;
 }
