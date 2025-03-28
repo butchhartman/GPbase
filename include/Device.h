@@ -4,14 +4,31 @@
 #include "vulkan/vulkan.h"
 #include "SDL.h"
 #include "Globals.h"
-#include "Swapchain.h"
 
 
 /******************************************************************************//**
- * March 26, 2025
+ * March 28, 2025
  * A physical device is a representation of the host machine's graphics card.
  * A logical device is the abstraction which allows the programmer to interface with and modify the physical device and its resources 
  **********************************************************************************/
+
+
+ /**
+  * 
+  * \brief Gets and returns details about the GPU's surface capabilities, surface formats, and surface present modes
+  * 
+  * \param device The physical device which will have its details queried
+  * \param count Pointer to an uint32_t which will sotre the number of supported surface formats
+  * \param surface The surface to query details with
+  * 
+  * \return SwapChainSupportDetails populated with the supported present modes and present formats
+  */
+extern SwapChainSupportDetails device_querySwapChainSupport(VkPhysicalDevice device, uint32_t *count, 
+                                                               VkSurfaceKHR surface);
+
+
+extern uint32_t device_findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties,
+                               VkPhysicalDevice physicalDevice);
 
  /**
   * \brief Checks the passed physical device's supported extensions against the global deviceExtensions array and returns an int representing the number of the required extensions that are supported

@@ -36,7 +36,7 @@ void buffers_copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize siz
 	vkFreeCommandBuffers(logicalDevice, commandPool, 1, &commandBuffer);
 }
 
-void buffers_createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer *buffer, VkDeviceMemory *buffermemory, VkDevice logicalDevice){
+void buffers_createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer *buffer, VkDeviceMemory *buffermemory, VkDevice logicalDevice, VkPhysicalDevice physicalDevice){
 	VkBufferCreateInfo bufferInfo = {0};
 	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	// NOTE : THE SIZE VALUE SHOULD *NOT* BE THE LENGTH OF THE ARRAY, IT IS THE SIZE OF THE ARRAY'S MEMORY BLOCK (the size you would put into malloc params)
@@ -54,7 +54,7 @@ void buffers_createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryP
 	VkMemoryAllocateInfo allocInfo = {0};
 	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	allocInfo.allocationSize = memRequirements.size;
-	allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties); 
+	allocInfo.memoryTypeIndex = device_findMemoryType(memRequirements.memoryTypeBits, properties, physicalDevice); 
 
 	/*
 	* In real applications, one should not call vkallocatememory for each individual buffer. This is due to
@@ -124,7 +124,8 @@ void buffers_createCommandBuffers(VkCommandBuffer **commandBuffers, VkCommandPoo
 
 void buffers_createVertexBuffer(Vertex *inputVertices, VkDevice logicalDevice,
                         VkBuffer *vertexBuffer, VkDeviceMemory *vertexBufferMemory,
-                        VkCommandPool commandPool, VkQueue graphicsQueue) {
+                        VkCommandPool commandPool, VkQueue graphicsQueue,
+						VkPhysicalDevice physicalDevice) {
 	// This is just size of the source in bytes, so a simple sizeof is permittable
 	VkDeviceSize  bufferSize = sizeof(Vertex) * 8;
 
@@ -132,7 +133,7 @@ void buffers_createVertexBuffer(Vertex *inputVertices, VkDevice logicalDevice,
 	VkDeviceMemory stagingBufferMemory;
 	buffers_createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
-                 &stagingBuffer, &stagingBufferMemory, logicalDevice);
+                 &stagingBuffer, &stagingBufferMemory, logicalDevice, physicalDevice);
 
 
 	void *data;
@@ -140,7 +141,7 @@ void buffers_createVertexBuffer(Vertex *inputVertices, VkDevice logicalDevice,
 		memcpy(data, inputVertices, (size_t)bufferSize);
 	vkUnmapMemory(logicalDevice, stagingBufferMemory);
 
-	buffers_createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory, logicalDevice);
+	buffers_createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory, logicalDevice, physicalDevice);
 
 	buffers_copyBuffer(stagingBuffer, *vertexBuffer, bufferSize, commandPool, logicalDevice, graphicsQueue);
 
@@ -150,20 +151,21 @@ void buffers_createVertexBuffer(Vertex *inputVertices, VkDevice logicalDevice,
 
 void buffers_createIndexBuffer(uint16_t *inputIndices, VkDevice logicalDevice,
                         VkBuffer *indexBuffer, VkDeviceMemory *indexBufferMemory,
-                        VkCommandPool commandPool, VkQueue graphicsQueue) {
+                        VkCommandPool commandPool, VkQueue graphicsQueue,
+						VkPhysicalDevice physicalDevice) {
 	// This is just size of the source in bytes, so a simple sizeof is permittable
 	VkDeviceSize bufferSize = 24; //temp
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
-	buffers_createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingBuffer, &stagingBufferMemory, logicalDevice);
+	buffers_createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingBuffer, &stagingBufferMemory, logicalDevice, physicalDevice);
 
 	void *data;
 	vkMapMemory(logicalDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
 		memcpy(data, inputIndices, (size_t)bufferSize);
 	vkUnmapMemory(logicalDevice, stagingBufferMemory);
 
-	buffers_createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory, logicalDevice);
+	buffers_createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory, logicalDevice, physicalDevice);
 
 	buffers_copyBuffer(stagingBuffer, *indexBuffer, bufferSize, commandPool, logicalDevice, graphicsQueue);
 
@@ -172,7 +174,8 @@ void buffers_createIndexBuffer(uint16_t *inputIndices, VkDevice logicalDevice,
 }
 
 void buffers_createUniformBuffers(VkBuffer **uniformBuffers, VkDeviceMemory **uniformBuffersMemory,
-                          void ***uniformBuffersMapped, VkDevice logicalDevice) {
+                          void ***uniformBuffersMapped, VkDevice logicalDevice,
+						  VkPhysicalDevice physicalDevice) {
 
 	VkDeviceSize bufferSize = sizeof(UniformBufferObject);
 
@@ -187,7 +190,7 @@ void buffers_createUniformBuffers(VkBuffer **uniformBuffers, VkDeviceMemory **un
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {                                                                                 // actual black magic addressing below
 																																				// the tutorial did not pass these as pointers, but that might be because vector does that automatically?
-		buffers_createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &((*uniformBuffers)[i]), &((*uniformBuffersMemory)[i]), logicalDevice);
+		buffers_createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &((*uniformBuffers)[i]), &((*uniformBuffersMemory)[i]), logicalDevice, physicalDevice);
 		vkMapMemory(logicalDevice, (*uniformBuffersMemory)[i], 0, bufferSize, 0, &((*uniformBuffersMapped)[i])); // Initially, accidently wrote uniformBuffersMemore[i] twice instead of uniformBuffersMapped[i]...
 
 	}

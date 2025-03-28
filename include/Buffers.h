@@ -4,11 +4,12 @@
 #include "vulkan/vulkan.h"
 #include "SDL3/SDL.h"
 #include "Globals.h"
+#include "Device.h"
 
 
 /******************************************************************************//**
  *
- * March 26, 2025
+ * March 28, 2025
  * 
  **********************************************************************************/
 
@@ -40,7 +41,8 @@ extern void buffers_copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer,
  */
 extern void buffers_createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, 
                         VkMemoryPropertyFlags properties, VkBuffer *buffer, 
-                        VkDeviceMemory *buffermemory, VkDevice logicalDevice);
+                        VkDeviceMemory *buffermemory, VkDevice logicalDevice,
+                        VkPhysicalDevice physicalDevice);
 
 /**
  * \brief Creates an array of framebuffers
@@ -81,7 +83,8 @@ extern void buffers_createCommandBuffers(VkCommandBuffer **commandBuffers, VkCom
  */
 extern void buffers_createVertexBuffer(Vertex *inputVertices, VkDevice logicalDevice,
                         VkBuffer *vertexBuffer, VkDeviceMemory *vertexBufferMemory,
-                        VkCommandPool commandPool, VkQueue graphicsQueue);
+                        VkCommandPool commandPool, VkQueue graphicsQueue,
+                        VkPhysicalDevice physicalDevice);
 /**
  * \brief Creates an index buffer
  * 
@@ -94,7 +97,8 @@ extern void buffers_createVertexBuffer(Vertex *inputVertices, VkDevice logicalDe
  */
 extern void buffers_createIndexBuffer(uint16_t *inputIndices, VkDevice logicalDevice,
                         VkBuffer *indexBuffer, VkDeviceMemory *indexBufferMemory,
-                        VkCommandPool commandPool, VkQueue graphicsQueue);
+                        VkCommandPool commandPool, VkQueue graphicsQueue,
+                        VkPhysicalDevice physicalDevice);
 
 /**
  * \brief Creates an array of uniform buffers
@@ -105,6 +109,7 @@ extern void buffers_createIndexBuffer(uint16_t *inputIndices, VkDevice logicalDe
  * \param logicalDevice Logical device from which the uniform buffers will be allocated
  */
 extern void buffers_createUniformBuffers(VkBuffer **uniformBuffers, VkDeviceMemory **uniformBuffersMemory,
-                          void ***uniformBuffersMapped, VkDevice logicalDevice);
+                          void ***uniformBuffersMapped, VkDevice logicalDevice,
+                          VkPhysicalDevice physicalDevice);
 
 #endif // GP_BUFFERS_INCLUDED

@@ -1,8 +1,56 @@
 #include "Device.h"
 
 
+SwapChainSupportDetails device_querySwapChainSupport(VkPhysicalDevice device, uint32_t *count, VkSurfaceKHR surface) {
+
+	SwapChainSupportDetails details = { 0 };
+
+	// surface capabilities
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
+
+	// surface formates
+	uint32_t formatCount = 0;
+	vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, NULL);
+
+	if (count != NULL) {
+		*count = formatCount;
+	}
+
+	if (formatCount != 0) {
+		details.formats = (VkSurfaceFormatKHR*)malloc(sizeof(VkSurfaceFormatKHR) * formatCount);
+		//memset(details.formats, NULL, sizeof(VkSurfaceFormatKHR) * formatCount); // i feel like i needed these for some reason so I wont delete them yet
+		vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, details.formats);
+	}
+
+	// presentation modes
+	uint32_t presentCount = 0;
+	vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentCount, NULL);
+
+	if (presentCount != 0) {
+		details.presentModes = (VkPresentModeKHR*)malloc(sizeof(VkPresentModeKHR) * presentCount);
+		//memset(details.presentModes, NULL, sizeof(VkPresentModeKHR) * presentCount);
+		vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentCount, details.presentModes);
+	}
+	return details;
+}
+
+uint32_t device_findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties,
+						VkPhysicalDevice physicalDevice) {
+	VkPhysicalDeviceMemoryProperties memProperties;
+	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
+
+	for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+		if (typeFilter & (1 << i) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+			return i;
+		}
+	}
+
+	SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to find a memory type");
+
+}
+
 int device_checkDeviceExtensionSupport(VkPhysicalDevice device) {
-	uint32_t extensionCount = 0;
+    uint32_t extensionCount = 0;
 	vkEnumerateDeviceExtensionProperties(device, NULL, &extensionCount, NULL);
 
 	VkExtensionProperties *availableExtensions = (VkExtensionProperties*)malloc(sizeof(VkExtensionProperties) * extensionCount);
@@ -45,7 +93,7 @@ uint32_t device_isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface) 
 	int swapChainAdequate = 0;
 	if (extensionsSupported == extensionsCount) {
 		SwapChainSupportDetails swapChainSupport = { 0 }; 
-		swapChainSupport = swapchain_querySwapChainSupport(device, NULL, surface);
+		swapChainSupport = device_querySwapChainSupport(device, NULL, surface);
 		// This check may not be reliable TODO : TEST
 		swapChainAdequate = (swapChainSupport.presentModes != NULL && swapChainSupport.formats != NULL);
 		//printf("%d", swapChainAdequate);

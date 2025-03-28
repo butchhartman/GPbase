@@ -1,37 +1,9 @@
 #include "Swapchain.h"
 
-SwapChainSupportDetails swapchain_querySwapChainSupport(VkPhysicalDevice device, uint32_t *count, VkSurfaceKHR surface) {
-
-	SwapChainSupportDetails details = { 0 };
-
-	// surface capabilities
-	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
-
-	// surface formates
-	uint32_t formatCount = 0;
-	vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, NULL);
-
-	if (count != NULL) {
-		*count = formatCount;
-	}
-
-	if (formatCount != 0) {
-		details.formats = (VkSurfaceFormatKHR*)malloc(sizeof(VkSurfaceFormatKHR) * formatCount);
-		//memset(details.formats, NULL, sizeof(VkSurfaceFormatKHR) * formatCount); // i feel like i needed these for some reason so I wont delete them yet
-		vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, details.formats);
-	}
-
-	// presentation modes
-	uint32_t presentCount = 0;
-	vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentCount, NULL);
-
-	if (presentCount != 0) {
-		details.presentModes = (VkPresentModeKHR*)malloc(sizeof(VkPresentModeKHR) * presentCount);
-		//memset(details.presentModes, NULL, sizeof(VkPresentModeKHR) * presentCount);
-		vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentCount, details.presentModes);
-	}
-	return details;
+inline uint32_t swapchain_hasStencilComponent(VkFormat format) {
+	return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
 }
+
 
 VkPresentModeKHR swapchain_chooseSwapPresentMode(const VkPresentModeKHR **availablePresentModes) {
 	// TODO : ADD SELECTION LOGIC
@@ -104,7 +76,7 @@ void swapchain_transitionImageLayout(VkImage image, VkFormat format,
 
 	if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
 		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-		if (hasStencilComponent(format)) {
+		if (swapchain_hasStencilComponent(format)) {
 			barrier.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
 		}
 	}
@@ -172,7 +144,7 @@ VkImageView swapchain_createImageView(VkImage image, VkFormat format, VkImageAsp
 	return imageView;
 }
 
-void swapchain_createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage *image, VkDeviceMemory *imageMemory, VkDevice logicalDevice) {
+void swapchain_createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage *image, VkDeviceMemory *imageMemory, VkDevice logicalDevice, VkPhysicalDevice physicalDevice) {
 	VkImageCreateInfo imageInfo = {0};
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	imageInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -198,7 +170,7 @@ void swapchain_createImage(uint32_t width, uint32_t height, VkFormat format, VkI
 	VkMemoryAllocateInfo allocInfo = {0};
 	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	allocInfo.allocationSize = memRequirements.size;
-	allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
+	allocInfo.memoryTypeIndex = device_findMemoryType(memRequirements.memoryTypeBits, properties, physicalDevice);
 
 	if (vkAllocateMemory(logicalDevice, &allocInfo, NULL, imageMemory) != VK_SUCCESS) {
 		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to allocate image memory");
@@ -218,7 +190,7 @@ void swapchain_createDepthResources(VkExtent2D swapChainExtent, VkImage *depthIm
 									VkPipelineStageFlags *sourceStage, VkPipelineStageFlags *destinationStage,
 									VkCommandPool commandPool, VkQueue graphicsQueue) {
 	VkFormat depthFormat = swapchain_findDepthFormat(physicalDevice);
-	swapchain_createImage(swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory, logicalDevice);
+	swapchain_createImage(swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory, logicalDevice, physicalDevice);
 	*depthImageView = swapchain_createImageView(*depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, logicalDevice);
 	swapchain_transitionImageLayout(*depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, sourceStage, destinationStage, commandPool, logicalDevice, graphicsQueue);
 }
@@ -335,7 +307,7 @@ void swapchain_createSwapChain(VkSwapchainKHR *swapChain, VkImage **swapChainIma
                                       SDL_Window *window) {
 	uint32_t surfaceFormatsLength = NULL;
 
-	SwapChainSupportDetails swapChainSupport = swapchain_querySwapChainSupport(physicalDevice, &surfaceFormatsLength, surface);
+	SwapChainSupportDetails swapChainSupport = device_querySwapChainSupport(physicalDevice, &surfaceFormatsLength, surface);
 	
 	VkSurfaceFormatKHR surfaceFormat = swapchain_chooseSwapSurfaceFormat(swapChainSupport.formats, surfaceFormatsLength);
 

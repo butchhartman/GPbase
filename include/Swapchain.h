@@ -3,14 +3,14 @@
 #include "vulkan/vulkan.h"
 #include "SDL.h"
 #include "Globals.h"
-#include "Device.h"
 #include "Buffers.h"
 #include "SingleTimeCommands.h"
+#include "Device.h"
 
 
 /******************************************************************************//**
  *
- * March 27, 2025
+ * March 28, 2025
  * 
  * The swapchain represents a series of (blank) images which the programmer can request from the operating system (display engine?).
  * Once the request to borrow a swapchain image is granted, the program may render to it, then request the operating system to display the image
@@ -28,17 +28,12 @@
  **********************************************************************************/
 
  /**
+  * \brief Helper function which determines if a VkFormat has a stencil component
   * 
-  * \brief Gets and returns details about the GPU's surface capabilities, surface formats, and surface present modes
-  * 
-  * \param device The physical device which will have its details queried
-  * \param count Pointer to an uint32_t which will sotre the number of supported surface formats
-  * \param surface The surface to query details with
-  * 
-  * \return SwapChainSupportDetails populated with the supported present modes and present formats
+  * \param format The format to be tested
   */
-extern SwapChainSupportDetails swapchain_querySwapChainSupport(VkPhysicalDevice device, uint32_t *count, 
-                                                               VkSurfaceKHR surface);
+extern inline uint32_t swapchian_hasStencilComponent(VkFormat format);
+
 
 /**
  * \brief Chooses swap present mode based on the available present modes
@@ -112,7 +107,7 @@ extern void swapchain_createImage(uint32_t width, uint32_t height,
                                   VkFormat format, VkImageTiling tiling, 
                                   VkImageUsageFlags usage, VkMemoryPropertyFlags properties, 
                                   VkImage *image, VkDeviceMemory *imageMemory, 
-                                  VkDevice logicalDevice);
+                                  VkDevice logicalDevice, VkPhysicalDevice physicalDevice);
 
 /**
  * \brief Calls swapchain_findSupportedFormat and returns the format which supports a stencil buffer

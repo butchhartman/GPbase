@@ -48,3 +48,22 @@ const unsigned char* readFileBin(const char* filename, unsigned int *size) {
 	*size = fileSize;
 	return data;
 }
+
+
+VkShaderModule createShaderModule(const unsigned char* code, uint32_t size,
+								  VkDevice logicalDevice) {
+
+	VkShaderModuleCreateInfo createInfo = { 0 };
+	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	createInfo.codeSize = size;
+	// This is a uint32_t*, but it works with unsigned char*. Typecast is just in case it matters.
+	createInfo.pCode = (const uint32_t*)code;
+
+	VkShaderModule shaderModule;
+	if (vkCreateShaderModule(logicalDevice, &createInfo, NULL, &shaderModule) != VK_SUCCESS) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to create shader module");
+		exit(VK_ERROR_INITIALIZATION_FAILED);
+	}
+	
+	return shaderModule;
+}
